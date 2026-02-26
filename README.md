@@ -15,10 +15,31 @@ Chrome developer extension with 20+ codec, formatter, and conversion tools.
 | 网络 | IP/CIDR 计算 |
 | 正则 | 正则表达式测试 |
 
+## 安装
+
+### 从 GitHub Release 安装
+
+1. 前往 [Releases](https://github.com/lonsty/devnip/releases) 下载最新的 `devnip-*.zip`
+2. 解压到任意目录
+3. 打开 Chrome，访问 `chrome://extensions/`
+4. 开启右上角 **开发者模式**
+5. 点击 **加载已解压的扩展程序**，选择解压后的目录
+
+### 从源码安装
+
+```bash
+git clone https://github.com/lonsty/devnip.git
+cd devnip
+npm install
+npm run build
+```
+
+然后按上述步骤 3-5 加载 `dist/` 目录即可。
+
 ## 使用方式
 
-1. **Popup 弹窗** — 点击浏览器右上角插件图标
-2. **右键菜单** — 选中页面文本后右键 → Devnip
+- **Popup 弹窗** — 点击浏览器右上角的 Devnip 图标，在侧边栏选择工具
+- **右键菜单** — 在任意网页中选中文本，右键 → **Devnip** → 选择操作（结果自动复制到剪贴板）
 
 ## 本地开发
 
@@ -32,13 +53,6 @@ npm run build
 # 构建并打包 zip
 npm run zip
 ```
-
-### 加载到 Chrome
-
-1. 打开 `chrome://extensions/`
-2. 开启右上角「开发者模式」
-3. 点击「加载已解压的扩展程序」
-4. 选择项目根目录（或 `dist/` 目录）
 
 ### 调试
 
