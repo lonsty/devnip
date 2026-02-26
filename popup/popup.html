@@ -1,0 +1,623 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Devnip</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="app">
+    <!-- Sidebar -->
+    <nav class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <img src="../icons/icon48.png" alt="Devnip" class="sidebar-logo">
+        <span>Devnip</span>
+        <button class="btn-lang" id="btn-lang" title="Toggle language">
+          <span class="nav-icon" data-icon="languages"></span>
+          <span id="lang-label">EN</span>
+        </button>
+      </div>
+      <div class="sidebar-scroll">
+        <div class="nav-group">
+          <div class="nav-group-title" data-i18n="group.codec">Codec</div>
+          <a class="nav-item active" data-tool="base64"><span class="nav-icon" data-icon="base64"></span><span data-i18n="nav.base64">Base64</span></a>
+          <a class="nav-item" data-tool="url"><span class="nav-icon" data-icon="link"></span><span data-i18n="nav.url">URL</span></a>
+          <a class="nav-item" data-tool="html-entity"><span class="nav-icon" data-icon="code"></span><span data-i18n="nav.html-entity">HTML Entity</span></a>
+          <a class="nav-item" data-tool="unicode"><span class="nav-icon" data-icon="globe"></span><span data-i18n="nav.unicode">Unicode</span></a>
+          <a class="nav-item" data-tool="smart-decode"><span class="nav-icon" data-icon="wand"></span><span data-i18n="nav.smart-decode">Smart Decode</span></a>
+        </div>
+        <div class="nav-group">
+          <div class="nav-group-title" data-i18n="group.format">Format</div>
+          <a class="nav-item" data-tool="json"><span class="nav-icon" data-icon="braces"></span><span data-i18n="nav.json">JSON</span></a>
+          <a class="nav-item" data-tool="yaml"><span class="nav-icon" data-icon="fileText"></span><span data-i18n="nav.yaml">YAML</span></a>
+        </div>
+        <div class="nav-group">
+          <div class="nav-group-title" data-i18n="group.parse">Parse</div>
+          <a class="nav-item" data-tool="querystring"><span class="nav-icon" data-icon="search"></span><span data-i18n="nav.querystring">Query String</span></a>
+          <a class="nav-item" data-tool="jwt"><span class="nav-icon" data-icon="key"></span><span data-i18n="nav.jwt">JWT</span></a>
+          <a class="nav-item" data-tool="cron"><span class="nav-icon" data-icon="clock"></span><span data-i18n="nav.cron">Cron</span></a>
+        </div>
+        <div class="nav-group">
+          <div class="nav-group-title" data-i18n="group.convert">Convert</div>
+          <a class="nav-item" data-tool="timestamp"><span class="nav-icon" data-icon="timer"></span><span data-i18n="nav.timestamp">Timestamp</span></a>
+          <a class="nav-item" data-tool="number-base"><span class="nav-icon" data-icon="binary"></span><span data-i18n="nav.number-base">Number Base</span></a>
+          <a class="nav-item" data-tool="color"><span class="nav-icon" data-icon="palette"></span><span data-i18n="nav.color">Color</span></a>
+        </div>
+        <div class="nav-group">
+          <div class="nav-group-title" data-i18n="group.text">Text</div>
+          <a class="nav-item" data-tool="text"><span class="nav-icon" data-icon="textCursor"></span><span data-i18n="nav.text">Text Tools</span></a>
+          <a class="nav-item" data-tool="diff"><span class="nav-icon" data-icon="scale"></span><span data-i18n="nav.diff">Diff</span></a>
+          <a class="nav-item" data-tool="markdown"><span class="nav-icon" data-icon="markdown"></span><span data-i18n="nav.markdown">Markdown</span></a>
+        </div>
+        <div class="nav-group">
+          <div class="nav-group-title" data-i18n="group.calc">Calc / Gen</div>
+          <a class="nav-item" data-tool="hash"><span class="nav-icon" data-icon="fingerprint"></span><span data-i18n="nav.hash">Hash</span></a>
+          <a class="nav-item" data-tool="uuid"><span class="nav-icon" data-icon="dice"></span><span data-i18n="nav.uuid">UUID / Random</span></a>
+        </div>
+        <div class="nav-group">
+          <div class="nav-group-title" data-i18n="group.network">Network</div>
+          <a class="nav-item" data-tool="ip"><span class="nav-icon" data-icon="network"></span><span data-i18n="nav.ip">IP / CIDR</span></a>
+        </div>
+        <div class="nav-group">
+          <div class="nav-group-title" data-i18n="group.regex">Regex</div>
+          <a class="nav-item" data-tool="regex"><span class="nav-icon" data-icon="regex"></span><span data-i18n="nav.regex">Regex Tester</span></a>
+        </div>
+      </div>
+      <div class="sidebar-footer">
+        <button class="btn-open-tab" id="open-tab" data-i18n-title="btn.openTab">
+          <span class="nav-icon" data-icon="externalLink"></span>
+          <span data-i18n="btn.openTab">Open in New Tab</span>
+        </button>
+      </div>
+    </nav>
+
+    <!-- Content -->
+    <main class="content" id="content">
+
+      <!-- Base64 -->
+      <div class="tool-panel" id="panel-base64">
+        <div class="panel-header">
+          <h2><span class="h-icon" data-icon="base64"></span> <span data-i18n="base64.title">Base64 Codec</span></h2>
+          <label class="option-label"><input type="checkbox" id="base64-urlsafe"> <span data-i18n="base64.urlsafe">URL-safe</span></label>
+        </div>
+        <div class="io-area">
+          <div class="io-label"><span data-i18n="label.input">INPUT</span> <button class="btn-small btn-clear" data-clear="base64-input"><span class="btn-icon" data-icon="x"></span> <span data-i18n="btn.clear">Clear</span></button></div>
+          <textarea id="base64-input" class="io-textarea" data-i18n-ph="base64.placeholder.in" placeholder="Paste or enter text..." spellcheck="false"></textarea>
+        </div>
+        <div class="btn-row">
+          <button class="btn-decode action-btn" id="base64-decode"><span class="btn-icon" data-icon="arrowLeft"></span> <span data-i18n="btn.decode">Decode</span></button>
+          <span class="sep-pipe">|</span>
+          <button class="btn-encode action-btn" id="base64-encode"><span class="btn-icon" data-icon="arrowRight"></span> <span data-i18n="btn.encode">Encode</span></button>
+          <button class="btn-swap" id="base64-swap" data-i18n-title="btn.swap"><span data-icon="arrowUpDown"></span></button>
+        </div>
+        <div class="io-area">
+          <div class="io-label"><span data-i18n="label.output">OUTPUT</span> <button class="btn-small btn-copy" data-copy="base64-output"><span class="btn-icon" data-icon="copy"></span> <span data-i18n="btn.copy">Copy</span></button></div>
+          <textarea id="base64-output" class="io-textarea" readonly spellcheck="false"></textarea>
+        </div>
+      </div>
+
+      <!-- URL -->
+      <div class="tool-panel hidden" id="panel-url">
+        <div class="panel-header">
+          <h2><span class="h-icon" data-icon="link"></span> <span data-i18n="url.title">URL Codec</span></h2>
+          <label class="option-label"><input type="checkbox" id="url-form-mode"> <span data-i18n="url.formMode">Form mode (+ → space)</span></label>
+        </div>
+        <div class="io-area">
+          <div class="io-label"><span data-i18n="label.input">INPUT</span> <button class="btn-small btn-clear" data-clear="url-input"><span class="btn-icon" data-icon="x"></span> <span data-i18n="btn.clear">Clear</span></button></div>
+          <textarea id="url-input" class="io-textarea" data-i18n-ph="url.placeholder" placeholder="Paste or enter URL..." spellcheck="false"></textarea>
+        </div>
+        <div class="btn-row">
+          <button class="btn-decode action-btn" id="url-decode-btn"><span class="btn-icon" data-icon="arrowLeft"></span> <span data-i18n="btn.decode">Decode</span></button>
+          <span class="sep-pipe">|</span>
+          <button class="btn-encode action-btn" id="url-encode-comp"><span class="btn-icon" data-icon="arrowRight"></span> <span data-i18n="url.encodeComp">Encode Component</span></button>
+          <span class="sep-pipe">|</span>
+          <button class="btn-encode action-btn" id="url-encode-uri"><span class="btn-icon" data-icon="arrowRight"></span> <span data-i18n="url.encodeURI">Encode URI</span></button>
+          <span class="sep-pipe">|</span>
+          <button class="btn-action action-btn" id="url-recursive"><span class="btn-icon" data-icon="refresh"></span> <span data-i18n="url.recursive">Recursive</span></button>
+          <button class="btn-swap" id="url-swap" data-i18n-title="btn.swap"><span data-icon="arrowUpDown"></span></button>
+        </div>
+        <div class="io-area">
+          <div class="io-label"><span data-i18n="label.output">OUTPUT</span> <button class="btn-small btn-copy" data-copy="url-output"><span class="btn-icon" data-icon="copy"></span> <span data-i18n="btn.copy">Copy</span></button></div>
+          <textarea id="url-output" class="io-textarea" readonly spellcheck="false"></textarea>
+        </div>
+      </div>
+
+      <!-- HTML Entity -->
+      <div class="tool-panel hidden" id="panel-html-entity">
+        <div class="panel-header">
+          <h2><span class="h-icon" data-icon="code"></span> <span data-i18n="html.title">HTML Entity Codec</span></h2>
+          <label class="option-label"><input type="checkbox" id="html-encode-all"> <span data-i18n="html.encodeAll">Encode all (incl. non-ASCII)</span></label>
+        </div>
+        <div class="io-area">
+          <div class="io-label"><span data-i18n="label.input">INPUT</span> <button class="btn-small btn-clear" data-clear="html-input"><span class="btn-icon" data-icon="x"></span> <span data-i18n="btn.clear">Clear</span></button></div>
+          <textarea id="html-input" class="io-textarea" spellcheck="false"></textarea>
+        </div>
+        <div class="btn-row">
+          <button class="btn-decode action-btn" id="html-decode"><span class="btn-icon" data-icon="arrowLeft"></span> <span data-i18n="btn.decode">Decode</span></button>
+          <span class="sep-pipe">|</span>
+          <button class="btn-encode action-btn" id="html-encode"><span class="btn-icon" data-icon="arrowRight"></span> <span data-i18n="btn.encode">Encode</span></button>
+          <button class="btn-swap" id="html-swap" data-i18n-title="btn.swap"><span data-icon="arrowUpDown"></span></button>
+        </div>
+        <div class="io-area">
+          <div class="io-label"><span data-i18n="label.output">OUTPUT</span> <button class="btn-small btn-copy" data-copy="html-output"><span class="btn-icon" data-icon="copy"></span> <span data-i18n="btn.copy">Copy</span></button></div>
+          <textarea id="html-output" class="io-textarea" readonly spellcheck="false"></textarea>
+        </div>
+      </div>
+
+      <!-- Unicode -->
+      <div class="tool-panel hidden" id="panel-unicode">
+        <div class="panel-header">
+          <h2><span class="h-icon" data-icon="globe"></span> <span data-i18n="unicode.title">Unicode Converter</span></h2>
+          <label class="option-label"><input type="checkbox" id="unicode-encode-all"> <span data-i18n="unicode.encodeAll">Encode all</span></label>
+        </div>
+        <div class="io-area">
+          <div class="io-label"><span data-i18n="label.input">INPUT</span> <button class="btn-small btn-clear" data-clear="unicode-input"><span class="btn-icon" data-icon="x"></span> <span data-i18n="btn.clear">Clear</span></button></div>
+          <textarea id="unicode-input" class="io-textarea" spellcheck="false"></textarea>
+        </div>
+        <div class="btn-row">
+          <button class="btn-decode action-btn" id="unicode-decode"><span class="btn-icon" data-icon="arrowLeft"></span> <span data-i18n="btn.decode">Decode</span></button>
+          <span class="sep-pipe">|</span>
+          <button class="btn-encode action-btn" id="unicode-encode"><span class="btn-icon" data-icon="arrowRight"></span> <span data-i18n="btn.encode">Encode</span></button>
+          <button class="btn-swap" id="unicode-swap" data-i18n-title="btn.swap"><span data-icon="arrowUpDown"></span></button>
+        </div>
+        <div class="io-area">
+          <div class="io-label"><span data-i18n="label.output">OUTPUT</span> <button class="btn-small btn-copy" data-copy="unicode-output"><span class="btn-icon" data-icon="copy"></span> <span data-i18n="btn.copy">Copy</span></button></div>
+          <textarea id="unicode-output" class="io-textarea" readonly spellcheck="false"></textarea>
+        </div>
+      </div>
+
+      <!-- Smart Decode -->
+      <div class="tool-panel hidden" id="panel-smart-decode">
+        <div class="panel-header"><h2><span class="h-icon" data-icon="wand"></span> <span data-i18n="smart.title">Smart Decode</span></h2></div>
+        <div class="io-area">
+          <div class="io-label"><span data-i18n="label.input">INPUT</span> <button class="btn-small btn-clear" data-clear="smart-input"><span class="btn-icon" data-icon="x"></span> <span data-i18n="btn.clear">Clear</span></button></div>
+          <textarea id="smart-input" class="io-textarea" data-i18n-ph="smart.placeholder" placeholder="Paste encoded text, auto-detect and decode layer by layer..." spellcheck="false"></textarea>
+        </div>
+        <div class="btn-row">
+          <button class="btn-action action-btn" id="smart-decode-btn"><span class="btn-icon" data-icon="wand"></span> <span data-i18n="smart.btn">Smart Decode</span></button>
+        </div>
+        <div id="smart-layers" class="decode-layers"></div>
+        <div class="io-area">
+          <div class="io-label"><span data-i18n="smart.finalResult">FINAL RESULT</span> <button class="btn-small btn-copy" data-copy="smart-output"><span class="btn-icon" data-icon="copy"></span> <span data-i18n="btn.copy">Copy</span></button></div>
+          <textarea id="smart-output" class="io-textarea" readonly spellcheck="false"></textarea>
+        </div>
+      </div>
+
+      <!-- JSON -->
+      <div class="tool-panel hidden" id="panel-json">
+        <div class="panel-header">
+          <h2><span class="h-icon" data-icon="braces"></span> <span data-i18n="json.title">JSON Formatter</span></h2>
+          <label class="option-label"><input type="checkbox" id="json-relaxed"> <span data-i18n="json.relaxed">Relaxed</span></label>
+        </div>
+        <div class="io-area">
+          <div class="io-label"><span data-i18n="label.input">INPUT</span> <button class="btn-small btn-clear" data-clear="json-input"><span class="btn-icon" data-icon="x"></span> <span data-i18n="btn.clear">Clear</span></button></div>
+          <textarea id="json-input" class="io-textarea" data-i18n-ph="json.placeholder" placeholder="Paste JSON..." spellcheck="false"></textarea>
+        </div>
+        <div class="action-group-wrap">
+          <div class="action-group">
+            <div class="action-row">
+              <button class="btn-encode action-btn" id="json-format"><span class="btn-icon" data-icon="sparkles"></span> <span data-i18n="json.format">Format</span></button>
+              <span class="sep-pipe">|</span>
+              <select id="json-indent" class="select-small opt-fixed"><option value="2" data-i18n="json.spaces2">2 spaces</option><option value="4" data-i18n="json.spaces4">4 spaces</option></select>
+            </div>
+            <div class="action-row">
+              <button class="btn-decode action-btn" id="json-minify"><span class="btn-icon" data-icon="package"></span> <span data-i18n="json.minify">Minify</span></button>
+            </div>
+            <div class="action-row">
+              <button class="btn-util action-btn" id="json-sort"><span class="btn-icon" data-icon="arrowUpDown"></span> <span data-i18n="json.sort">Sort</span></button>
+              <span class="sep-pipe">|</span>
+              <select id="json-sort-mode" class="select-small opt-fixed">
+                <option value="key-asc" data-i18n="sort.keyAsc">Key ↑</option>
+                <option value="key-desc" data-i18n="sort.keyDesc">Key ↓</option>
+                <option value="value-asc" data-i18n="sort.valueAsc">Value ↑</option>
+                <option value="value-desc" data-i18n="sort.valueDesc">Value ↓</option>
+              </select>
+            </div>
+            <div class="action-row">
+              <button class="btn-action action-btn" id="json-to-yaml"><span class="btn-icon" data-icon="arrowRight"></span> <span data-i18n="json.toYaml">JSON → YAML</span></button>
+              <span class="sep-pipe">|</span>
+              <select id="json-to-yaml-indent" class="select-small opt-fixed"><option value="2" data-i18n="json.spaces2">2 spaces</option><option value="4" data-i18n="json.spaces4">4 spaces</option></select>
+              <span class="sep-dot">·</span>
+              <select id="json-to-yaml-array-style" class="select-small opt-fixed" data-i18n-title="yaml.arrayStyleTip" title="Array style">
+                  <option value="block" data-i18n="yaml.arrayBlock">- block</option>
+                  <option value="flow" data-i18n="yaml.arrayFlow">[] flow</option>
+                </select>
+              <span class="sep-dot" id="json-to-yaml-spacing-dot">·</span>
+              <select id="json-to-yaml-array-spacing" class="select-small opt-fixed" data-i18n-title="yaml.arraySpacing" title="Spacing">
+                  <option value="space" data-i18n="yaml.spacingSpace">[ a, b ]</option>
+                  <option value="compact" data-i18n="yaml.spacingCompact">[a, b]</option>
+                </select>
+              <span class="sep-dot">·</span>
+              <label class="option-label opt-fixed"><input type="checkbox" id="json-to-yaml-remove-quotes"> <span data-i18n="yaml.removeQuotes">Remove quotes</span></label>
+            </div>
+          </div>
+          <button class="btn-swap action-swap" id="json-swap" data-i18n-title="btn.swap"><span data-icon="arrowUpDown"></span></button>
+        </div>
+        <div id="json-warnings" class="warning-box hidden"></div>
+        <div class="io-area">
+          <div class="io-label"><span data-i18n="label.output">OUTPUT</span> <button class="btn-small btn-copy" data-copy="json-output"><span class="btn-icon" data-icon="copy"></span> <span data-i18n="btn.copy">Copy</span></button></div>
+          <textarea id="json-output" class="io-textarea" readonly spellcheck="false"></textarea>
+        </div>
+      </div>
+
+      <!-- YAML -->
+      <div class="tool-panel hidden" id="panel-yaml">
+        <div class="panel-header">
+          <h2><span class="h-icon" data-icon="fileText"></span> <span data-i18n="yaml.title">YAML Formatter</span></h2>
+        </div>
+        <div class="io-area">
+          <div class="io-label"><span data-i18n="label.input">INPUT</span> <button class="btn-small btn-clear" data-clear="yaml-input"><span class="btn-icon" data-icon="x"></span> <span data-i18n="btn.clear">Clear</span></button></div>
+          <textarea id="yaml-input" class="io-textarea" data-i18n-ph="yaml.placeholder" placeholder="Paste YAML or JSON..." spellcheck="false"></textarea>
+        </div>
+        <div class="action-group-wrap">
+          <div class="action-group">
+            <div class="action-row">
+              <button class="btn-encode action-btn" id="yaml-format"><span class="btn-icon" data-icon="sparkles"></span> <span data-i18n="yaml.format">Format</span></button>
+              <span class="sep-pipe">|</span>
+              <select id="yaml-indent" class="select-small opt-fixed"><option value="2" data-i18n="json.spaces2">2 spaces</option><option value="4" data-i18n="json.spaces4">4 spaces</option></select>
+              <span class="sep-dot">·</span>
+              <select id="yaml-array-style" class="select-small opt-fixed" data-i18n-title="yaml.arrayStyleTip" title="Array style">
+                <option value="block" data-i18n="yaml.arrayBlock">- block</option>
+                <option value="flow" data-i18n="yaml.arrayFlow">[] flow</option>
+              </select>
+              <span class="sep-dot" id="yaml-spacing-dot">·</span>
+              <select id="yaml-array-spacing" class="select-small opt-fixed" data-i18n-title="yaml.arraySpacing" title="Spacing">
+                  <option value="space" data-i18n="yaml.spacingSpace">[ a, b ]</option>
+                  <option value="compact" data-i18n="yaml.spacingCompact">[a, b]</option>
+                </select>
+              <span class="sep-dot">·</span>
+              <label class="option-label opt-fixed"><input type="checkbox" id="yaml-remove-quotes"> <span data-i18n="yaml.removeQuotes">Remove quotes</span></label>
+            </div>
+            <div class="action-row">
+              <button class="btn-util action-btn" id="yaml-sort"><span class="btn-icon" data-icon="arrowUpDown"></span> <span data-i18n="yaml.sort">Sort</span></button>
+              <span class="sep-pipe">|</span>
+              <select id="yaml-sort-mode" class="select-small opt-fixed">
+                <option value="key-asc" data-i18n="sort.keyAsc">Key ↑</option>
+                <option value="key-desc" data-i18n="sort.keyDesc">Key ↓</option>
+                <option value="value-asc" data-i18n="sort.valueAsc">Value ↑</option>
+                <option value="value-desc" data-i18n="sort.valueDesc">Value ↓</option>
+              </select>
+            </div>
+            <div class="action-row">
+              <button class="btn-action action-btn" id="yaml-to-json"><span class="btn-icon" data-icon="arrowRight"></span> <span data-i18n="yaml.toJson">YAML → JSON</span></button>
+              <span class="sep-pipe">|</span>
+              <select id="yaml-to-json-indent" class="select-small opt-fixed"><option value="2" data-i18n="json.spaces2">2 spaces</option><option value="4" data-i18n="json.spaces4">4 spaces</option></select>
+            </div>
+          </div>
+          <button class="btn-swap action-swap" id="yaml-swap" data-i18n-title="btn.swap"><span data-icon="arrowUpDown"></span></button>
+        </div>
+        <div class="io-area">
+          <div class="io-label"><span data-i18n="label.output">OUTPUT</span> <button class="btn-small btn-copy" data-copy="yaml-output"><span class="btn-icon" data-icon="copy"></span> <span data-i18n="btn.copy">Copy</span></button></div>
+          <textarea id="yaml-output" class="io-textarea" readonly spellcheck="false"></textarea>
+        </div>
+      </div>
+
+      <!-- Query String -->
+      <div class="tool-panel hidden" id="panel-querystring">
+        <div class="panel-header"><h2><span class="h-icon" data-icon="search"></span> <span data-i18n="qs.title">Query String Parser</span></h2></div>
+        <div class="io-area">
+          <div class="io-label"><span data-i18n="qs.inputLabel">INPUT URL OR QUERY STRING</span> <button class="btn-small btn-clear" data-clear="qs-input"><span class="btn-icon" data-icon="x"></span> <span data-i18n="btn.clear">Clear</span></button></div>
+          <textarea id="qs-input" class="io-textarea" data-i18n-ph="qs.placeholder" placeholder="key=value&key2=value2 or full URL" spellcheck="false"></textarea>
+        </div>
+        <div class="btn-row">
+          <button class="btn-decode action-btn" id="qs-parse"><span class="btn-icon" data-icon="search"></span> <span data-i18n="qs.parse">Parse</span></button>
+          <span class="sep-pipe">|</span>
+          <button class="btn-encode action-btn" id="qs-build"><span class="btn-icon" data-icon="wrench"></span> <span data-i18n="qs.build">Rebuild</span></button>
+        </div>
+        <div id="qs-table-wrap" class="qs-table-wrap hidden">
+          <table class="qs-table" id="qs-table">
+            <thead><tr><th data-i18n="qs.thKey">Key</th><th data-i18n="qs.thValue">Value</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <div class="io-area">
+          <div class="io-label"><span data-i18n="qs.buildResult">BUILD RESULT</span> <button class="btn-small btn-copy" data-copy="qs-output"><span class="btn-icon" data-icon="copy"></span> <span data-i18n="btn.copy">Copy</span></button></div>
+          <textarea id="qs-output" class="io-textarea" readonly spellcheck="false"></textarea>
+        </div>
+      </div>
+
+      <!-- JWT -->
+      <div class="tool-panel hidden" id="panel-jwt">
+        <div class="panel-header"><h2><span class="h-icon" data-icon="key"></span> <span data-i18n="jwt.title">JWT Decoder</span></h2></div>
+        <p class="hint" data-i18n="jwt.hint">⚠ Decode only, signature not verified. Do not paste production tokens in untrusted environments.</p>
+        <div class="io-area">
+          <div class="io-label"><span data-i18n="jwt.inputLabel">JWT TOKEN</span> <button class="btn-small btn-clear" data-clear="jwt-input"><span class="btn-icon" data-icon="x"></span> <span data-i18n="btn.clear">Clear</span></button></div>
+          <textarea id="jwt-input" class="io-textarea" data-i18n-ph="jwt.placeholder" placeholder="eyJhbGciOiJIUzI1NiIs..." spellcheck="false"></textarea>
+        </div>
+        <div class="btn-row">
+          <button class="btn-decode action-btn" id="jwt-decode"><span class="btn-icon" data-icon="key"></span> <span data-i18n="jwt.decode">Decode</span></button>
+        </div>
+        <div id="jwt-result" class="jwt-result hidden">
+          <div class="jwt-section">
+            <div class="jwt-section-title">Header</div>
+            <pre id="jwt-header" class="jwt-pre"></pre>
+          </div>
+          <div class="jwt-section">
+            <div class="jwt-section-title">Payload</div>
+            <pre id="jwt-payload" class="jwt-pre"></pre>
+          </div>
+          <div id="jwt-exp-info" class="jwt-exp-info hidden"></div>
+          <div class="jwt-section">
+            <div class="jwt-section-title">Signature</div>
+            <pre id="jwt-signature" class="jwt-pre"></pre>
+          </div>
+        </div>
+      </div>
+
+      <!-- Cron -->
+      <div class="tool-panel hidden" id="panel-cron">
+        <div class="panel-header"><h2><span class="h-icon" data-icon="clock"></span> <span data-i18n="cron.title">Cron Expression Parser</span></h2></div>
+        <div class="io-area">
+          <div class="io-label"><span data-i18n="cron.inputLabel">CRON EXPRESSION</span></div>
+          <input id="cron-input" class="io-input" type="text" data-i18n-ph="cron.placeholder" placeholder="*/5 * * * * or 0 30 8 * * *" spellcheck="false">
+        </div>
+        <div class="btn-row">
+          <button class="btn-decode action-btn" id="cron-parse"><span class="btn-icon" data-icon="search"></span> <span data-i18n="cron.parse">Parse</span></button>
+          <span class="sep-pipe">|</span>
+          <button class="btn-action action-btn" id="cron-next"><span class="btn-icon" data-icon="calendar"></span> <span data-i18n="cron.next">Next 10 runs</span></button>
+        </div>
+        <div id="cron-desc" class="result-box hidden"></div>
+        <div id="cron-runs" class="result-box hidden"></div>
+      </div>
+
+      <!-- Timestamp -->
+      <div class="tool-panel hidden" id="panel-timestamp">
+        <div class="panel-header">
+          <h2><span class="h-icon" data-icon="timer"></span> <span data-i18n="ts.title">Timestamp Converter</span></h2>
+          <select id="ts-timezone" class="select-small">
+            <option value="Asia/Shanghai">Asia/Shanghai</option>
+            <option value="UTC">UTC</option>
+            <option value="Asia/Tokyo">Asia/Tokyo</option>
+            <option value="US/Eastern">US/Eastern</option>
+            <option value="US/Pacific">US/Pacific</option>
+            <option value="Europe/London">Europe/London</option>
+          </select>
+        </div>
+        <div class="io-area">
+          <div class="io-label"><span data-i18n="ts.inputLabel">TIMESTAMP</span> <button class="btn-small" id="ts-now"><span class="btn-icon" data-icon="zap"></span> <span data-i18n="ts.now">Now</span></button></div>
+          <input id="ts-input" class="io-input" type="text" data-i18n-ph="ts.placeholder" placeholder="1700000000 or 2024-01-01 08:00:00" spellcheck="false">
+        </div>
+        <div class="btn-row">
+          <button class="btn-decode action-btn" id="ts-to-readable"><span class="btn-icon" data-icon="arrowLeft"></span> <span data-i18n="ts.toReadable">Timestamp → Readable</span></button>
+          <span class="sep-pipe">|</span>
+          <button class="btn-encode action-btn" id="ts-to-stamp"><span class="btn-icon" data-icon="arrowRight"></span> <span data-i18n="ts.toStamp">Readable → Timestamp</span></button>
+        </div>
+        <div class="io-area">
+          <div class="io-label"><span data-i18n="label.result">RESULT</span> <button class="btn-small btn-copy" data-copy="ts-output"><span class="btn-icon" data-icon="copy"></span> <span data-i18n="btn.copy">Copy</span></button></div>
+          <textarea id="ts-output" class="io-textarea" readonly spellcheck="false"></textarea>
+        </div>
+      </div>
+
+      <!-- Number Base -->
+      <div class="tool-panel hidden" id="panel-number-base">
+        <div class="panel-header"><h2><span class="h-icon" data-icon="binary"></span> <span data-i18n="nb.title">Number Base Converter</span></h2></div>
+        <div class="io-area">
+          <div class="io-label"><span data-i18n="nb.inputLabel">INPUT NUMBER (auto-detect 0x/0b/0o prefix)</span></div>
+          <input id="nb-input" class="io-input" type="text" data-i18n-ph="nb.placeholder" placeholder="255 or 0xFF or 0b11111111" spellcheck="false">
+        </div>
+        <div class="btn-row">
+          <button class="btn-action action-btn" id="nb-convert"><span class="btn-icon" data-icon="refresh"></span> <span data-i18n="nb.convert">Convert</span></button>
+        </div>
+        <div id="nb-result" class="result-box hidden">
+          <div class="result-row"><span class="result-label">BIN</span><span id="nb-bin" class="result-value"></span><button class="btn-small btn-copy" data-copy-text="nb-bin"><span class="btn-icon" data-icon="copy"></span></button></div>
+          <div class="result-row"><span class="result-label">OCT</span><span id="nb-oct" class="result-value"></span><button class="btn-small btn-copy" data-copy-text="nb-oct"><span class="btn-icon" data-icon="copy"></span></button></div>
+          <div class="result-row"><span class="result-label">DEC</span><span id="nb-dec" class="result-value"></span><button class="btn-small btn-copy" data-copy-text="nb-dec"><span class="btn-icon" data-icon="copy"></span></button></div>
+          <div class="result-row"><span class="result-label">HEX</span><span id="nb-hex" class="result-value"></span><button class="btn-small btn-copy" data-copy-text="nb-hex"><span class="btn-icon" data-icon="copy"></span></button></div>
+        </div>
+      </div>
+
+      <!-- Color -->
+      <div class="tool-panel hidden" id="panel-color">
+        <div class="panel-header"><h2><span class="h-icon" data-icon="palette"></span> <span data-i18n="color.title">Color Converter</span></h2></div>
+        <div class="io-area">
+          <div class="io-label"><span data-i18n="color.inputLabel">INPUT COLOR VALUE</span></div>
+          <input id="color-input" class="io-input" type="text" data-i18n-ph="color.placeholder" placeholder="#FF5733 or rgb(255,87,51) or hsl(11,100%,60%)" spellcheck="false">
+        </div>
+        <div class="btn-row">
+          <button class="btn-action action-btn" id="color-convert"><span class="btn-icon" data-icon="palette"></span> <span data-i18n="color.convert">Convert</span></button>
+        </div>
+        <div id="color-result" class="result-box hidden">
+          <div class="color-preview-wrap">
+            <div id="color-preview" class="color-preview"></div>
+          </div>
+          <div class="result-row"><span class="result-label">HEX</span><span id="color-hex" class="result-value"></span><button class="btn-small btn-copy" data-copy-text="color-hex"><span class="btn-icon" data-icon="copy"></span></button></div>
+          <div class="result-row"><span class="result-label">RGB</span><span id="color-rgb" class="result-value"></span><button class="btn-small btn-copy" data-copy-text="color-rgb"><span class="btn-icon" data-icon="copy"></span></button></div>
+          <div class="result-row"><span class="result-label">HSL</span><span id="color-hsl" class="result-value"></span><button class="btn-small btn-copy" data-copy-text="color-hsl"><span class="btn-icon" data-icon="copy"></span></button></div>
+        </div>
+      </div>
+
+      <!-- Text -->
+      <div class="tool-panel hidden" id="panel-text">
+        <div class="panel-header"><h2><span class="h-icon" data-icon="textCursor"></span> <span data-i18n="text.title">Text Tools</span></h2></div>
+        <div class="io-area">
+          <div class="io-label"><span data-i18n="label.input">INPUT</span> <button class="btn-small btn-clear" data-clear="text-input"><span class="btn-icon" data-icon="x"></span> <span data-i18n="btn.clear">Clear</span></button></div>
+          <textarea id="text-input" class="io-textarea" spellcheck="false"></textarea>
+        </div>
+        <div class="btn-row btn-row-wrap">
+          <button class="btn-util action-btn" id="text-upper"><span data-i18n="text.upper">UPPER</span></button>
+          <span class="sep-pipe">|</span>
+          <button class="btn-util action-btn" id="text-lower"><span data-i18n="text.lower">lower</span></button>
+          <span class="sep-pipe">|</span>
+          <button class="btn-util action-btn" id="text-title"><span data-i18n="text.title_case">Title</span></button>
+          <span class="sep-pipe">|</span>
+          <button class="btn-util action-btn" id="text-camel">camelCase</button>
+          <span class="sep-pipe">|</span>
+          <button class="btn-util action-btn" id="text-pascal">PascalCase</button>
+          <span class="sep-pipe">|</span>
+          <button class="btn-util action-btn" id="text-snake">snake_case</button>
+          <span class="sep-pipe">|</span>
+          <button class="btn-util action-btn" id="text-kebab">kebab-case</button>
+        </div>
+        <div class="btn-row btn-row-wrap">
+          <button class="btn-util action-btn" id="text-dedup"><span class="btn-icon" data-icon="removeFormat"></span> <span data-i18n="text.dedup">Dedup</span></button>
+          <span class="sep-pipe">|</span>
+          <button class="btn-util action-btn" id="text-sort-asc"><span data-i18n="text.sortAsc">↑ Sort</span></button>
+          <span class="sep-pipe">|</span>
+          <button class="btn-util action-btn" id="text-sort-desc"><span data-i18n="text.sortDesc">↓ Sort</span></button>
+          <span class="sep-pipe">|</span>
+          <button class="btn-util action-btn" id="text-shuffle"><span class="btn-icon" data-icon="shuffle"></span> <span data-i18n="text.shuffle">Shuffle</span></button>
+          <span class="sep-pipe">|</span>
+          <button class="btn-util action-btn" id="text-trim"><span class="btn-icon" data-icon="scissors"></span> <span data-i18n="text.trim">Trim</span></button>
+          <span class="sep-pipe">|</span>
+          <button class="btn-util action-btn" id="text-empty"><span data-i18n="text.emptyLines">Empty Ln</span></button>
+          <span class="sep-pipe">|</span>
+          <button class="btn-util action-btn" id="text-lineno"><span class="btn-icon" data-icon="listOrdered"></span> <span data-i18n="text.lineNo">Line #</span></button>
+        </div>
+        <div id="text-stats" class="text-stats"></div>
+        <div class="io-area">
+          <div class="io-label"><span data-i18n="label.output">OUTPUT</span> <button class="btn-small btn-copy" data-copy="text-output"><span class="btn-icon" data-icon="copy"></span> <span data-i18n="btn.copy">Copy</span></button></div>
+          <textarea id="text-output" class="io-textarea" readonly spellcheck="false"></textarea>
+        </div>
+      </div>
+
+      <!-- Diff -->
+      <div class="tool-panel hidden" id="panel-diff">
+        <div class="panel-header">
+          <h2><span class="h-icon" data-icon="scale"></span> <span data-i18n="diff.title">Text Diff</span></h2>
+          <label class="option-label"><input type="checkbox" id="diff-ignore-ws"> <span data-i18n="diff.ignoreWs">Ignore whitespace</span></label>
+        </div>
+        <div class="diff-inputs">
+          <div class="io-area half">
+            <div class="io-label"><span data-i18n="diff.original">ORIGINAL TEXT</span></div>
+            <textarea id="diff-a" class="io-textarea" spellcheck="false"></textarea>
+          </div>
+          <div class="io-area half">
+            <div class="io-label"><span data-i18n="diff.modified">MODIFIED TEXT</span></div>
+            <textarea id="diff-b" class="io-textarea" spellcheck="false"></textarea>
+          </div>
+        </div>
+        <div class="btn-row">
+          <button class="btn-action action-btn" id="diff-compare"><span class="btn-icon" data-icon="scale"></span> <span data-i18n="diff.compare">Compare</span></button>
+        </div>
+        <div id="diff-stats" class="text-stats hidden"></div>
+        <div id="diff-result" class="diff-result hidden"></div>
+      </div>
+
+      <!-- Markdown -->
+      <div class="tool-panel hidden" id="panel-markdown">
+        <div class="panel-header"><h2><span class="h-icon" data-icon="markdown"></span> <span data-i18n="md.title">Markdown Preview</span></h2></div>
+        <div class="md-container">
+          <div class="io-area half">
+            <div class="io-label"><span data-i18n="md.inputLabel">MARKDOWN</span></div>
+            <textarea id="md-input" class="io-textarea" data-i18n-ph="md.placeholder" placeholder="# Hello Markdown" spellcheck="false"></textarea>
+          </div>
+          <div class="md-preview-wrap half">
+            <div class="io-label"><span data-i18n="md.preview">PREVIEW</span> <button class="btn-small btn-copy" data-copy="md-html"><span class="btn-icon" data-icon="copy"></span> <span data-i18n="md.copyHtml">Copy HTML</span></button></div>
+            <div id="md-preview" class="md-preview"></div>
+            <textarea id="md-html" class="hidden"></textarea>
+          </div>
+        </div>
+      </div>
+
+      <!-- Hash -->
+      <div class="tool-panel hidden" id="panel-hash">
+        <div class="panel-header"><h2><span class="h-icon" data-icon="fingerprint"></span> <span data-i18n="hash.title">Hash Calculator</span></h2></div>
+        <p class="hint" data-i18n="hash.hint">Computed using UTF-8 encoding</p>
+        <div class="io-area">
+          <div class="io-label"><span data-i18n="label.input">INPUT</span> <button class="btn-small btn-clear" data-clear="hash-input"><span class="btn-icon" data-icon="x"></span> <span data-i18n="btn.clear">Clear</span></button></div>
+          <textarea id="hash-input" class="io-textarea" data-i18n-ph="hash.placeholder" placeholder="Paste or enter text..." spellcheck="false"></textarea>
+        </div>
+        <div class="btn-row">
+          <button class="btn-action action-btn" id="hash-compute"><span class="btn-icon" data-icon="zap"></span> <span data-i18n="hash.compute">Compute</span></button>
+          <span class="sep-pipe">|</span>
+          <label class="option-label"><input type="checkbox" id="hash-upper"> <span data-i18n="hash.upper">Uppercase</span></label>
+        </div>
+        <div id="hash-result" class="result-box hidden">
+          <div class="result-row"><span class="result-label">MD5</span><span id="hash-md5" class="result-value"></span><button class="btn-small btn-copy" data-copy-text="hash-md5"><span class="btn-icon" data-icon="copy"></span></button></div>
+          <div class="result-row"><span class="result-label">SHA-1</span><span id="hash-sha1" class="result-value"></span><button class="btn-small btn-copy" data-copy-text="hash-sha1"><span class="btn-icon" data-icon="copy"></span></button></div>
+          <div class="result-row"><span class="result-label">SHA-256</span><span id="hash-sha256" class="result-value"></span><button class="btn-small btn-copy" data-copy-text="hash-sha256"><span class="btn-icon" data-icon="copy"></span></button></div>
+          <div class="result-row"><span class="result-label">SHA-512</span><span id="hash-sha512" class="result-value"></span><button class="btn-small btn-copy" data-copy-text="hash-sha512"><span class="btn-icon" data-icon="copy"></span></button></div>
+        </div>
+      </div>
+
+      <!-- UUID / Random -->
+      <div class="tool-panel hidden" id="panel-uuid">
+        <div class="panel-header"><h2><span class="h-icon" data-icon="dice"></span> <span data-i18n="uuid.title">UUID / Random String</span></h2></div>
+        <div class="btn-row">
+          <button class="btn-action action-btn" id="uuid-gen"><span class="btn-icon" data-icon="dice"></span> <span data-i18n="uuid.gen">Generate UUID v4</span></button>
+          <span class="sep-pipe">|</span>
+          <label class="option-label"><input type="checkbox" id="uuid-upper"> <span data-i18n="uuid.upper">Uppercase</span></label>
+          <span class="sep-dot">·</span>
+          <label class="option-label"><input type="checkbox" id="uuid-nodash"> <span data-i18n="uuid.noDash">No dashes</span></label>
+        </div>
+        <div class="io-area">
+          <div class="io-label"><span data-i18n="uuid.label">UUID</span> <button class="btn-small btn-copy" data-copy="uuid-output"><span class="btn-icon" data-icon="copy"></span> <span data-i18n="btn.copy">Copy</span></button></div>
+          <textarea id="uuid-output" class="io-textarea" readonly spellcheck="false"></textarea>
+        </div>
+        <hr class="divider">
+        <div class="inline-group">
+          <label><span data-i18n="rand.length">Length</span> <input id="rand-len" class="io-input-sm" type="number" value="16" min="1" max="256"></label>
+          <select id="rand-charset" class="select-small">
+            <option value="alphanumeric" data-i18n="rand.alphanumeric">Alphanumeric</option>
+            <option value="all" data-i18n="rand.all">Alphanumeric + Special</option>
+            <option value="hex" data-i18n="rand.hex">Hex</option>
+          </select>
+          <label class="option-label"><input type="checkbox" id="rand-no-ambiguous"> <span data-i18n="rand.noAmbiguous">No ambiguous chars</span></label>
+        </div>
+        <div class="btn-row">
+          <button class="btn-action action-btn" id="rand-gen"><span class="btn-icon" data-icon="hash"></span> <span data-i18n="rand.gen">Random String</span></button>
+          <span class="sep-pipe">|</span>
+          <button class="btn-util action-btn" id="rand-pwd"><span class="btn-icon" data-icon="lock"></span> <span data-i18n="rand.pwd">Strong Password</span></button>
+        </div>
+        <div class="io-area">
+          <div class="io-label"><span data-i18n="label.result">RESULT</span> <button class="btn-small btn-copy" data-copy="rand-output"><span class="btn-icon" data-icon="copy"></span> <span data-i18n="btn.copy">Copy</span></button></div>
+          <textarea id="rand-output" class="io-textarea" readonly spellcheck="false"></textarea>
+        </div>
+      </div>
+
+      <!-- IP -->
+      <div class="tool-panel hidden" id="panel-ip">
+        <div class="panel-header"><h2><span class="h-icon" data-icon="network"></span> <span data-i18n="ip.title">IP / CIDR Calculator</span></h2></div>
+        <div class="io-area">
+          <div class="io-label"><span data-i18n="ip.inputLabel">INPUT IP OR CIDR</span></div>
+          <input id="ip-input" class="io-input" type="text" data-i18n-ph="ip.placeholder" placeholder="192.168.1.0/24 or 192.168.1.1" spellcheck="false">
+        </div>
+        <div class="btn-row">
+          <button class="btn-action action-btn" id="ip-calc"><span class="btn-icon" data-icon="calculator"></span> <span data-i18n="ip.calc">Calculate</span></button>
+          <span class="sep-pipe">|</span>
+          <button class="btn-decode action-btn" id="int-to-ip"><span class="btn-icon" data-icon="arrowLeft"></span> <span data-i18n="ip.toIp">Integer → IP</span></button>
+          <span class="sep-pipe">|</span>
+          <button class="btn-encode action-btn" id="ip-to-int"><span class="btn-icon" data-icon="arrowRight"></span> <span data-i18n="ip.toInt">IP → Integer</span></button>
+        </div>
+        <div id="ip-result" class="result-box hidden"></div>
+      </div>
+
+      <!-- Regex -->
+      <div class="tool-panel hidden" id="panel-regex">
+        <div class="panel-header"><h2><span class="h-icon" data-icon="regex"></span> <span data-i18n="regex.title">Regex Tester</span></h2></div>
+        <div class="regex-input-row">
+          <span class="regex-slash">/</span>
+          <input id="regex-pattern" class="io-input regex-input" type="text" data-i18n-ph="regex.placeholder" placeholder="Regular expression" spellcheck="false">
+          <span class="regex-slash">/</span>
+          <input id="regex-flags" class="io-input regex-flags" type="text" value="g" placeholder="flags" spellcheck="false">
+        </div>
+        <div class="regex-presets">
+          <select id="regex-presets-select" class="select-small">
+            <option value="" data-i18n="regex.presets">Common regex templates...</option>
+          </select>
+        </div>
+        <div id="regex-error" class="error-text hidden"></div>
+        <div class="io-area">
+          <div class="io-label"><span data-i18n="regex.testText">TEST TEXT</span></div>
+          <textarea id="regex-text" class="io-textarea" spellcheck="false"></textarea>
+        </div>
+        <div id="regex-highlight" class="regex-highlight hidden"></div>
+        <div id="regex-matches" class="result-box hidden"></div>
+        <div class="io-area">
+          <div class="io-label"><span data-i18n="regex.replaceTo">REPLACE WITH</span></div>
+          <input id="regex-replace" class="io-input" type="text" data-i18n-ph="regex.replacePlaceholder" placeholder="Replacement string (use $1, $2...)" spellcheck="false">
+        </div>
+        <div class="io-area">
+          <div class="io-label"><span data-i18n="regex.replaceResult">REPLACE RESULT</span> <button class="btn-small btn-copy" data-copy="regex-result"><span class="btn-icon" data-icon="copy"></span> <span data-i18n="btn.copy">Copy</span></button></div>
+          <textarea id="regex-result" class="io-textarea" readonly spellcheck="false"></textarea>
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <div id="toast" class="toast hidden"></div>
+  <script src="popup.js" type="module"></script>
+</body>
+</html>
