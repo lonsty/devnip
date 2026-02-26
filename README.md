@@ -2,6 +2,10 @@
 
 Chrome developer extension with 20+ codec, formatter, and conversion tools.
 
+![Light Theme](demo/screenshot-light-theme.png)
+
+![Dark Theme](demo/screenshot-dark-theme.png)
+
 ## 功能
 
 | 分类 | 工具 |

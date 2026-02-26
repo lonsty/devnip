@@ -100,15 +100,16 @@ function applyI18n() {
 }
 
 // ============ Init ============
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
   if (new URLSearchParams(window.location.search).has('tab')) {
     document.body.classList.add('standalone');
   }
 
   injectIcons();
   applyI18n();
+  initTheme();
 
-  initNavigation();
+  await initNavigation();
   initOpenInTab();
   initLangToggle();
   initClearCopyButtons();
@@ -134,19 +135,31 @@ document.addEventListener('DOMContentLoaded', () => {
   initRegex();
 });
 
-function initNavigation() {
+function switchTool(tool) {
   const navItems = document.querySelectorAll('.nav-item');
   const panels = document.querySelectorAll('.tool-panel');
+  navItems.forEach(n => n.classList.toggle('active', n.dataset.tool === tool));
+  panels.forEach(p => p.classList.toggle('hidden', p.id !== `panel-${tool}`));
+}
+
+async function initNavigation() {
+  const navItems = document.querySelectorAll('.nav-item');
+
+  // Restore last used tool
+  try {
+    const result = await chrome.storage.local.get('devnip-last-tool');
+    const lastTool = result['devnip-last-tool'];
+    if (lastTool && document.querySelector(`.nav-item[data-tool="${lastTool}"]`)) {
+      switchTool(lastTool);
+    }
+  } catch { /* ignore */ }
 
   navItems.forEach(item => {
     item.addEventListener('click', (e) => {
       e.preventDefault();
-      navItems.forEach(n => n.classList.remove('active'));
-      item.classList.add('active');
       const tool = item.dataset.tool;
-      panels.forEach(p => {
-        p.classList.toggle('hidden', p.id !== `panel-${tool}`);
-      });
+      switchTool(tool);
+      try { chrome.storage.local.set({ 'devnip-last-tool': tool }); } catch { /* ignore */ }
     });
   });
 }
@@ -165,6 +178,41 @@ function initLangToggle() {
   on('btn-lang', 'click', () => {
     toggleLocale();
     applyI18n();
+  });
+}
+
+// ============ Theme ============
+const THEME_CYCLE = ['system', 'light', 'dark'];
+const THEME_ICONS = { system: 'themeSys', light: 'themeLt', dark: 'themeDk' };
+
+function applyTheme(mode) {
+  const html = document.documentElement;
+  if (mode === 'system') {
+    html.removeAttribute('data-theme');
+  } else {
+    html.setAttribute('data-theme', mode);
+  }
+  // Update button icon
+  const iconEl = $('theme-icon');
+  if (iconEl && icons[THEME_ICONS[mode]]) {
+    iconEl.innerHTML = icons[THEME_ICONS[mode]];
+  }
+}
+
+function initTheme() {
+  let mode = 'system';
+  try {
+    const saved = localStorage.getItem('devnip-theme');
+    if (saved && THEME_CYCLE.includes(saved)) mode = saved;
+  } catch { /* ignore */ }
+  applyTheme(mode);
+
+  on('btn-theme', 'click', () => {
+    const current = localStorage.getItem('devnip-theme') || 'system';
+    const idx = THEME_CYCLE.indexOf(current);
+    const next = THEME_CYCLE[(idx + 1) % THEME_CYCLE.length];
+    try { localStorage.setItem('devnip-theme', next); } catch { /* ignore */ }
+    applyTheme(next);
   });
 }
 
