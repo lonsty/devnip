@@ -1,11 +1,36 @@
 {
   "name": "devnip",
-  "version": "0.2.0",
-  "description": "Chrome extension - Devnip: Developer's Swiss Army Knife for codec, formatting and conversion",
-  "author": "Devnip",
+  "version": "0.3.0",
+  "description": "Devnip — Snip, transform, done. 20+ bite-sized dev tools for encoding, formatting, and conversion in a Chrome extension.",
+  "author": "lonsty",
   "license": "MIT",
   "private": true,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lonsty/devnip.git"
+  },
+  "bugs": {
+    "url": "https://github.com/lonsty/devnip/issues"
+  },
+  "homepage": "https://github.com/lonsty/devnip#readme",
+  "keywords": [
+    "chrome-extension",
+    "developer-tools",
+    "base64",
+    "json",
+    "yaml",
+    "codec",
+    "formatter",
+    "converter",
+    "hash",
+    "timestamp"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
+    "dev": "node scripts/esbuild.js --watch",
+    "bundle": "node scripts/esbuild.js",
     "build": "node scripts/build.js",
     "zip": "node scripts/build.js --zip",
     "icons": "node scripts/generate-icons.js",
@@ -13,6 +38,15 @@
     "clean": "rm -rf dist/"
   },
   "devDependencies": {
-    "canvas": "^3.2.1"
+    "@codemirror/lang-json": "^6.0.2",
+    "@codemirror/lang-markdown": "^6.5.0",
+    "@codemirror/lang-yaml": "^6.1.2",
+    "@codemirror/language": "^6.12.2",
+    "@codemirror/state": "^6.6.0",
+    "@codemirror/view": "^6.40.0",
+    "@lezer/highlight": "^1.2.3",
+    "canvas": "^3.2.1",
+    "codemirror": "^6.0.2",
+    "esbuild": "^0.27.4"
   }
 }

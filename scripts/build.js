@@ -1,6 +1,7 @@
-// Build script - 将源文件打包到 dist/ 目录，可选生成 zip
+// Build script - 先用 esbuild 打包，再将文件复制到 dist/ 目录，可选生成 zip
 const fs = require('fs');
 const path = require('path');
+const { execSync } = require('child_process');
 
 const ROOT = path.join(__dirname, '..');
 const DIST = path.join(ROOT, 'dist');
@@ -11,8 +12,20 @@ const COPY_LIST = [
   'manifest.json',
   'popup/',
   'background/',
-  'utils/',
   'icons/'
+];
+
+// popup/ 目录下不需要复制的源文件（已打包进 bundle）
+// NOTE: i18n.js and constants.js are NOT excluded because
+// background/service-worker.js imports them via ../popup/
+const POPUP_EXCLUDE = [
+  'popup.js',
+  'cm-editor.js',
+  'cache.js',
+  'theme.js',
+  'render.js',
+  'icons.js',
+  'popup.bundle.js.map',
 ];
 
 function cleanDir(dir) {
@@ -22,11 +35,12 @@ function cleanDir(dir) {
   fs.mkdirSync(dir, { recursive: true });
 }
 
-function copyRecursive(src, dest) {
+function copyRecursive(src, dest, excludes = []) {
   const stat = fs.statSync(src);
   if (stat.isDirectory()) {
     fs.mkdirSync(dest, { recursive: true });
     for (const item of fs.readdirSync(src)) {
+      if (excludes.includes(item)) continue;
       copyRecursive(path.join(src, item), path.join(dest, item));
     }
   } else {
@@ -35,7 +49,6 @@ function copyRecursive(src, dest) {
 }
 
 function createZip(sourceDir, outputPath) {
-  const { execSync } = require('child_process');
   const cwd = path.dirname(sourceDir);
   const dirName = path.basename(sourceDir);
   try {
@@ -47,8 +60,17 @@ function createZip(sourceDir, outputPath) {
   }
 }
 
-// Build
+// Step 1: Run esbuild to create the bundle
 console.log('Building Devnip...');
+console.log('  Bundling popup.js with esbuild...');
+try {
+  execSync('node scripts/esbuild.js --minify', { cwd: ROOT, stdio: 'inherit' });
+} catch (e) {
+  console.error('esbuild failed:', e.message);
+  process.exit(1);
+}
+
+// Step 2: Copy files to dist/
 cleanDir(DIST);
 
 for (const item of COPY_LIST) {
@@ -58,8 +80,23 @@ for (const item of COPY_LIST) {
     console.warn(`Warning: ${item} not found, skipping`);
     continue;
   }
-  copyRecursive(src, dest);
+  // For popup/, exclude source files that are bundled
+  const excludes = item === 'popup/' ? POPUP_EXCLUDE : [];
+  copyRecursive(src, dest, excludes);
   console.log(`  Copied ${item}`);
+}
+
+// Note: utils/ is no longer needed in dist (bundled into popup.bundle.js)
+// But background/service-worker.js still uses ES module imports from utils/
+// Check if background service worker needs utils
+const swPath = path.join(ROOT, 'background/service-worker.js');
+if (fs.existsSync(swPath)) {
+  const swContent = fs.readFileSync(swPath, 'utf8');
+  if (swContent.includes('../utils/') || swContent.includes("'../utils/")) {
+    // Service worker references utils, copy them
+    copyRecursive(path.join(ROOT, 'utils'), path.join(DIST, 'utils'));
+    console.log('  Copied utils/ (needed by service worker)');
+  }
 }
 
 // 统计文件大小

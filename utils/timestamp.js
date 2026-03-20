@@ -14,7 +14,7 @@ const FORMATS = {
 export const TimestampTool = {
   TIMEZONES,
 
-  toReadable(input, timezone = 'UTC', formatName = 'YYYY-MM-DD HH:mm:ss') {
+  toReadable(input, timezone = 'Asia/Shanghai', formatName = 'YYYY-MM-DD HH:mm:ss') {
     try {
       let ts = Number(input);
       if (isNaN(ts)) return { success: false, error: 'Please enter a valid numeric timestamp' };

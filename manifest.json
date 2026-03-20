@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Devnip",
-  "version": "0.2.0",
-  "description": "Developer's Swiss Army Knife — Base64/URL/JSON/YAML codec, formatter, Hash, timestamp converter and more",
+  "version": "0.3.0",
+  "description": "Snip, transform, done — Base64/URL/JSON/YAML codec, formatter, Hash, timestamp converter and more",
   "permissions": [
     "contextMenus",
     "activeTab",

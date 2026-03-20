@@ -1,35 +1,55 @@
-# Devnip
+<p align="center">
+  <img src="icons/icon128.png" width="80" height="80" alt="Devnip">
+</p>
 
-Chrome developer extension with 20+ codec, formatter, and conversion tools.
+<p align="center">
+  <strong>Snip, transform, done.</strong><br>
+  A Chrome extension with 20+ bite-sized dev tools for encoding, formatting, and conversion — right where you need them.
+</p>
 
-![Light Theme](demo/screenshot-light-theme.png)
+<p align="center">
+  <a href="README.zh-CN.md">中文</a> | English
+</p>
 
-![Dark Theme](demo/screenshot-dark-theme.png)
+<p align="center">
+  <a href="https://github.com/lonsty/devnip/releases"><img src="https://img.shields.io/github/v/release/lonsty/devnip?style=flat-square" alt="Release"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square" alt="License"></a>
+  <img src="https://img.shields.io/badge/chrome-92%2B-brightgreen?style=flat-square&logo=googlechrome&logoColor=white" alt="Chrome 92+">
+  <img src="https://img.shields.io/badge/manifest-v3-orange?style=flat-square" alt="Manifest V3">
+</p>
 
-## 功能
+<p align="center">
+  <img src="demo/screenshot-light-theme.png" width="720" alt="Light Theme">
+</p>
 
-| 分类 | 工具 |
-|------|------|
-| 编解码 | Base64、URL、HTML 实体、Unicode、智能解码 |
-| 格式化 | JSON、YAML ↔ JSON |
-| 解析 | Query String、JWT、Cron 表达式 |
-| 转换 | 时间戳、进制、色值 |
-| 文本 | 大小写/去重/排序/统计、Diff 对比、Markdown 预览 |
-| 计算/生成 | Hash (MD5/SHA)、UUID/随机字符串 |
-| 网络 | IP/CIDR 计算 |
-| 正则 | 正则表达式测试 |
+<p align="center">
+  <img src="demo/screenshot-dark-theme.png" width="720" alt="Dark Theme">
+</p>
 
-## 安装
+## Features
 
-### 从 GitHub Release 安装
+| Category | Tools |
+|----------|-------|
+| Codec | Base64, URL, HTML Entity, Unicode, Smart Decode |
+| Format | JSON, YAML ↔ JSON |
+| Parse | Query String, JWT, Cron Expression |
+| Convert | Timestamp, Number Base, Color |
+| Text | Case / Dedup / Sort / Stats, Diff, Markdown Preview |
+| Calc / Gen | Hash (MD5/SHA), UUID / Random String |
+| Network | IP / CIDR Calculator |
+| Regex | Regex Tester |
 
-1. 前往 [Releases](https://github.com/lonsty/devnip/releases) 下载最新的 `devnip-*.zip`
-2. 解压到任意目录
-3. 打开 Chrome，访问 `chrome://extensions/`
-4. 开启右上角 **开发者模式**
-5. 点击 **加载已解压的扩展程序**，选择解压后的目录
+## Install
 
-### 从源码安装
+### From GitHub Release
+
+1. Go to [Releases](https://github.com/lonsty/devnip/releases) and download the latest `devnip-*.zip`
+2. Unzip to any directory
+3. Open Chrome and navigate to `chrome://extensions/`
+4. Enable **Developer mode** (top-right toggle)
+5. Click **Load unpacked** and select the unzipped directory
+
+### From Source
 
 ```bash
 git clone https://github.com/lonsty/devnip.git
@@ -38,68 +58,86 @@ npm install
 npm run build
 ```
 
-然后按上述步骤 3-5 加载 `dist/` 目录即可。
+Then follow steps 3–5 above, loading the `dist/` directory.
 
-## 使用方式
+## Usage
 
-- **Popup 弹窗** — 点击浏览器右上角的 Devnip 图标，在侧边栏选择工具
-- **右键菜单** — 在任意网页中选中文本，右键 → **Devnip** → 选择操作（结果自动复制到剪贴板）
+- **Popup** — Click the Devnip icon in the browser toolbar, then select a tool from the sidebar
+- **Context Menu** — Select text on any webpage, right-click → **Devnip** → choose an action (result auto-copied to clipboard)
+- **Standalone Tab** — Click "Open in New Tab" at the bottom of the sidebar for a full-page layout
 
-## 本地开发
+## Local Development
 
 ```bash
-# 生成图标
+# Generate icons
 node scripts/generate-icons.js
 
-# 构建到 dist/
+# Bundle popup.js (dev mode with watch)
+npm run dev
+
+# Build to dist/
 npm run build
 
-# 构建并打包 zip
+# Build and package zip
 npm run zip
 ```
 
-### 调试
+### Debugging
 
-- **Popup 页面**: 右键插件图标 → 审查弹出内容（或在 Popup 页面按 F12）
-- **Service Worker**: `chrome://extensions/` → Devnip 卡片 → 点击「Service Worker」链接查看控制台
-- **Console 调试**: Popup 页面的 DevTools Console 中可直接调用 `import()` 导入工具模块测试
+- **Popup**: Right-click the extension icon → Inspect popup (or press F12 in the popup)
+- **Service Worker**: `chrome://extensions/` → Devnip card → click "Service Worker" link
+- **Console**: In the popup DevTools console, use `import()` to test utility modules directly
 
-## 项目结构
+## Project Structure
 
 ```
-├── manifest.json          # 扩展清单 (Manifest V3)
+├── manifest.json          # Extension manifest (Manifest V3)
 ├── popup/
-│   ├── popup.html         # Popup 页面
-│   ├── popup.css          # 样式
-│   ├── popup.js           # 交互逻辑
-│   ├── i18n.js            # 中英文国际化
-│   └── icons.js           # SVG 图标定义
+│   ├── popup.html         # Popup page
+│   ├── popup.css          # Styles (GitHub Primer, light/dark theme)
+│   ├── popup.js           # Entry point (tool init & event binding)
+│   ├── popup.bundle.js    # esbuild bundle output
+│   ├── constants.js       # Shared constants & config
+│   ├── cache.js           # localStorage cache system
+│   ├── theme.js           # Theme manager (system/light/dark cycle)
+│   ├── render.js          # DOM helpers, Toast, clipboard, result box
+│   ├── cm-editor.js       # CodeMirror 6 editor factory
+│   ├── i18n.js            # EN/ZH internationalization
+│   └── icons.js           # SVG icon definitions (GitHub Octicons)
 ├── background/
-│   └── service-worker.js  # 右键菜单注册与处理
-├── utils/                 # 20 个工具模块
-├── icons/                 # 图标 (16/48/128px)
+│   └── service-worker.js  # Context menu registration & handling
+├── utils/                 # 20 tool modules
+├── icons/                 # Icons (16/48/128px)
 ├── scripts/
-│   ├── build.js           # 构建脚本
-│   └── generate-icons.js  # 图标生成脚本
-├── .github/workflows/     # CI/CD
-├── REQUIREMENTS.md        # 需求文档
-└── CHANGELOG.md           # 变更日志
+│   ├── build.js           # Build + dist + zip script
+│   ├── esbuild.js         # esbuild bundling config
+│   └── generate-icons.js  # Icon generation script
+├── CHANGELOG.md           # Changelog (EN)
+├── CHANGELOG.zh-CN.md     # Changelog (ZH)
+├── README.md              # This file (EN)
+└── README.zh-CN.md        # Readme (ZH)
 ```
 
-## 技术栈
+## Tech Stack
 
 - Manifest V3
-- 纯原生 JavaScript (ES Modules)
-- 零运行时依赖（MD5 和 YAML 解析器内置实现）
+- Vanilla JavaScript (ES Modules)
+- [CodeMirror 6](https://codemirror.net/6/) — Syntax-highlighted editor (JSON / YAML / Markdown / Cron / JWT / QueryString)
+- [esbuild](https://esbuild.github.io/) — Zero-config bundler
+- Zero runtime dependencies (CodeMirror bundled at build time; MD5 and YAML parser built-in)
 - Hash: Web Crypto API (`crypto.subtle.digest`)
 - UUID: `crypto.randomUUID()` / `crypto.getRandomValues()`
 
-## 隐私
+## Privacy
 
-- 不收集任何用户数据
-- 不进行任何网络请求
-- 所有计算均在本地完成
+- No user data collection
+- No network requests
+- All computation runs locally
 
-## 许可
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) for a full list of changes.
+
+## License
 
 MIT

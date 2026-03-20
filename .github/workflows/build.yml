@@ -1,4 +1,4 @@
-name: Build & Package
+name: Build & Release
 
 on:
   push:
@@ -17,6 +17,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
+          cache: 'npm'
 
       - name: Install system dependencies for canvas
         run: sudo apt-get update && sudo apt-get install -y build-essential libcairo2-dev libjpeg-dev libpango1.0-dev libgif-dev librsvg2-dev
@@ -27,13 +28,10 @@ jobs:
       - name: Generate icons
         run: npm run icons
 
-      - name: Build
-        run: npm run build
-
-      - name: Package zip
+      - name: Build and package zip
         run: npm run zip
 
-      - name: Upload build artifact
+      - name: Upload dist artifact
         uses: actions/upload-artifact@v4
         with:
           name: devnip-extension
@@ -52,24 +50,10 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - name: Download zip artifact
+        uses: actions/download-artifact@v4
         with:
-          node-version: '20'
-
-      - name: Install system dependencies for canvas
-        run: sudo apt-get update && sudo apt-get install -y build-essential libcairo2-dev libjpeg-dev libpango1.0-dev libgif-dev librsvg2-dev
-
-      - name: Install npm dependencies
-        run: npm ci
-
-      - name: Generate icons
-        run: npm run icons
-
-      - name: Build & Package
-        run: npm run zip
+          name: devnip-zip
 
       - name: Create Release
         uses: softprops/action-gh-release@v2

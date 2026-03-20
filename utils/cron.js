@@ -39,7 +39,7 @@ export const CronTool = {
     }
   },
 
-  nextRuns(expr, count = 10) {
+  nextRuns(expr, count = 10, timezone = 'Asia/Shanghai') {
     try {
       const parts = expr.trim().split(/\s+/);
       let fields;
@@ -49,30 +49,56 @@ export const CronTool = {
 
       const results = [];
       const now = new Date();
-      let cursor = new Date(now.getFullYear(), now.getMonth(), now.getDate(), now.getHours(), now.getMinutes() + 1, 0);
+      // 从当前时间的下一分钟开始遍历
+      let cursor = new Date(Math.ceil((now.getTime() + 1) / 60000) * 60000);
       const maxIter = 525600; // 一年的分钟数
       let iter = 0;
 
       while (results.length < count && iter < maxIter) {
-        if (this._matchesCron(cursor, fields)) {
+        if (this._matchesCron(cursor, fields, timezone)) {
           results.push(new Date(cursor));
         }
         cursor = new Date(cursor.getTime() + 60000);
         iter++;
       }
 
-      return { success: true, data: results.map(d => d.toISOString().replace('T', ' ').substring(0, 19)) };
+      return { success: true, data: results.map(d => this._formatInTimezone(d, timezone)) };
     } catch (e) {
       return { success: false, error: `Calculation failed: ${e.message}` };
     }
   },
 
-  _matchesCron(date, fields) {
-    const minute = date.getMinutes();
-    const hour = date.getHours();
-    const day = date.getDate();
-    const month = date.getMonth() + 1;
-    const weekday = date.getDay();
+  // 获取指定时区下的时间分量
+  _getPartsInTimezone(date, timezone) {
+    const fmt = new Intl.DateTimeFormat('en-US', {
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', second: '2-digit',
+      hour12: false, weekday: 'short', timeZone: timezone
+    }).formatToParts(date);
+    const get = (type) => (fmt.find(p => p.type === type) || {}).value || '';
+    const weekdayMap = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+    return {
+      minute: parseInt(get('minute'), 10),
+      hour: parseInt(get('hour'), 10),
+      day: parseInt(get('day'), 10),
+      month: parseInt(get('month'), 10),
+      weekday: weekdayMap[get('weekday')] ?? 0
+    };
+  },
+
+  // 格式化为指定时区的可读时间
+  _formatInTimezone(date, timezone) {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', second: '2-digit',
+      hour12: false, timeZone: timezone
+    }).formatToParts(date);
+    const get = (type) => (parts.find(p => p.type === type) || {}).value || '';
+    return `${get('year')}-${get('month')}-${get('day')} ${get('hour')}:${get('minute')}:${get('second')}`;
+  },
+
+  _matchesCron(date, fields, timezone) {
+    const { minute, hour, day, month, weekday } = this._getPartsInTimezone(date, timezone);
 
     return this._matchField(fields[0], minute, FIELD_RANGES[0]) &&
            this._matchField(fields[1], hour, FIELD_RANGES[1]) &&

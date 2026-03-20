@@ -11,6 +11,7 @@ import { YamlTool } from '../utils/yaml.js';
 import { TextTool } from '../utils/text-tools.js';
 import { SmartDecodeTool } from '../utils/smart-decode.js';
 import { messages } from '../popup/i18n.js';
+import { LOCALE_KEY, CTX_TOAST_MAX_LENGTH } from '../popup/constants.js';
 
 // Context menu item definitions (id -> i18n key)
 const MENU_ITEMS = [
@@ -43,9 +44,9 @@ const MENU_ITEMS = [
 // Get locale from chrome.storage, fallback to navigator.language detection
 async function getLocale() {
   try {
-    const data = await chrome.storage.local.get('devnip-locale');
-    if (data['devnip-locale'] && messages[data['devnip-locale']]) {
-      return data['devnip-locale'];
+    const data = await chrome.storage.local.get(LOCALE_KEY);
+    if (data[LOCALE_KEY] && messages[data[LOCALE_KEY]]) {
+      return data[LOCALE_KEY];
     }
   } catch { /* ignore */ }
   const lang = (typeof navigator !== 'undefined' && navigator.language) || 'en';
@@ -94,7 +95,7 @@ chrome.runtime.onInstalled.addListener(() => {
 
 // Rebuild menus when locale changes in storage
 chrome.storage.onChanged.addListener((changes, area) => {
-  if (area === 'local' && changes['devnip-locale']) {
+  if (area === 'local' && changes[LOCALE_KEY]) {
     buildMenus();
   }
 });
@@ -179,7 +180,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
     ? `✓ ${swT(locale, 'ctx.success')}`
     : `✗ ${swT(locale, 'ctx.fail')}`;
   const toastBody = isSuccess
-    ? (outputText.length > 60 ? outputText.substring(0, 60) + '...' : outputText)
+    ? (outputText.length > CTX_TOAST_MAX_LENGTH ? outputText.substring(0, CTX_TOAST_MAX_LENGTH) + '...' : outputText)
     : (result.error || swT(locale, 'ctx.emptyResult'));
 
   // Inject toast + clipboard write into the page

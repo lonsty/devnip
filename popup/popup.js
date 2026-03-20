@@ -1,4 +1,10 @@
-// Devnip - Popup logic
+/**
+ * Devnip - Popup entry point
+ * Orchestrates tool initialization, navigation, and cache restoration.
+ * UI helpers, theme management, and constants live in separate modules.
+ */
+
+// ─── Tool modules ───
 import { Base64Tool } from '../utils/base64.js';
 import { JsonTool } from '../utils/json-format.js';
 import { UrlTool } from '../utils/url-codec.js';
@@ -19,95 +25,223 @@ import { MarkdownTool } from '../utils/markdown.js';
 import { CronTool } from '../utils/cron.js';
 import { IpTool } from '../utils/ip.js';
 import { SmartDecodeTool } from '../utils/smart-decode.js';
+
+// ─── Internal modules ───
+import { createEditor, getEditorValue, setEditorValue, focusEditor, updateEditorsTheme } from './cm-editor.js';
 import { t, getLocale, toggleLocale } from './i18n.js';
 import { icons } from './icons.js';
+import { initTheme } from './theme.js';
+import { $, on, showToast, copyToClipboard, escapeHtml, renderResultBox, injectIcons } from './render.js';
+import {
+  loadCache, saveCache, getCacheData,
+  loadOutputTypes, saveOutputTypes, getOutputType, setOutputType, removeOutputType,
+} from './cache.js';
+import {
+  SWAP_BUTTON_MAP, IP_FIELD_I18N, CACHE_MARKERS, LAST_TOOL_KEY,
+  TOAST_ERROR_DURATION, CACHE_RESTORE_DELAY, MD_RENDER_DEBOUNCE,
+  REGEX_DEBOUNCE, MD_CACHE_RESTORE_DELAY, MAX_REGEX_MATCHES,
+  DEFAULT_TIMEZONE, DEFAULT_INDENT, DEFAULT_RAND_LENGTH,
+} from './constants.js';
 
-// ============ Helpers ============
-function $(id) { return document.getElementById(id); }
+// ============ CodeMirror editor instances registry ============
+/** Maps element ID → { view: EditorView, lang: string } */
+const cmEditors = {};
 
-function on(id, event, handler) {
-  const el = typeof id === 'string' ? $(id) : id;
-  if (el) el.addEventListener(event, handler);
-}
+// ============ CM / textarea value helpers ============
 
-function showToast(msg, duration = 2000) {
-  const toast = $('toast');
-  if (!toast) return;
-  toast.textContent = msg;
-  toast.classList.remove('hidden');
-  clearTimeout(toast._timer);
-  toast._timer = setTimeout(() => toast.classList.add('hidden'), duration);
-}
-
-function copyToClipboard(text) {
-  navigator.clipboard.writeText(text)
-    .then(() => showToast(t('toast.copied')))
-    .catch(() => showToast(t('toast.copyFail')));
-}
-
-function swap(inputId, outputId) {
-  const inp = $(inputId), out = $(outputId);
-  if (!inp || !out) return;
-  const tmp = inp.value;
-  inp.value = out.value;
-  out.value = tmp;
-}
-
-function setOutput(id, result) {
+/**
+ * Get the value from a CM editor or plain textarea by element ID.
+ * @param {string} id - Element ID
+ * @returns {string}
+ */
+function getCmOrTextareaValue(id) {
+  if (cmEditors[id]) return getEditorValue(cmEditors[id].view);
   const el = $(id);
-  if (!el) return;
-  if (result.success) {
-    el.value = typeof result.data === 'string' ? result.data : JSON.stringify(result.data, null, 2);
+  return el ? el.value : '';
+}
+
+/**
+ * Set the value of a CM editor or plain textarea by element ID.
+ * @param {string} id - Element ID
+ * @param {string} value - New value
+ */
+function setCmOrTextareaValue(id, value) {
+  if (cmEditors[id]) {
+    setEditorValue(cmEditors[id].view, value || '');
+    return;
+  }
+  const el = $(id);
+  if (el) el.value = value || '';
+}
+
+// ============ Output visibility ============
+
+/**
+ * Show the output area and its swap button (if mapped).
+ * @param {string} textareaId - Output element ID
+ */
+function showOutputArea(textareaId) {
+  let areaEl;
+  if (cmEditors[textareaId]) {
+    areaEl = cmEditors[textareaId].view.dom.closest('.io-area-output');
   } else {
-    el.value = `${t('error.prefix')}: ${result.error}`;
+    const el = $(textareaId);
+    if (el) areaEl = el.closest('.io-area-output');
+  }
+  if (areaEl) areaEl.classList.remove('is-empty');
+
+  const swapId = SWAP_BUTTON_MAP[textareaId];
+  if (swapId) {
+    const swapBtn = $(swapId);
+    if (swapBtn) swapBtn.style.display = '';
   }
 }
 
-function escapeHtml(str) {
-  if (!str) return '';
-  return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+/**
+ * Hide the output area and its swap button (if mapped).
+ * @param {string} textareaId - Output element ID
+ */
+function hideOutputArea(textareaId) {
+  let areaEl;
+  if (cmEditors[textareaId]) {
+    areaEl = cmEditors[textareaId].view.dom.closest('.io-area-output');
+  } else {
+    const el = $(textareaId);
+    if (el) areaEl = el.closest('.io-area-output');
+  }
+  if (areaEl) areaEl.classList.add('is-empty');
+
+  const swapId = SWAP_BUTTON_MAP[textareaId];
+  if (swapId) {
+    const swapBtn = $(swapId);
+    if (swapBtn) swapBtn.style.display = 'none';
+  }
 }
 
-// ============ Icon injection ============
-function injectIcons() {
-  document.querySelectorAll('[data-icon]').forEach(el => {
-    const name = el.dataset.icon;
-    if (icons[name]) {
-      el.innerHTML = icons[name];
+/**
+ * Toggle output area visibility based on its current value.
+ * @param {string} textareaId - Output element ID
+ */
+function updateOutputVisibility(textareaId) {
+  const value = getCmOrTextareaValue(textareaId);
+  if (value) {
+    showOutputArea(textareaId);
+  } else {
+    hideOutputArea(textareaId);
+  }
+}
+
+// ============ Swap input ↔ output ============
+
+/**
+ * Swap values between input and output, updating cache and visibility.
+ * @param {string} inputId - Input element ID
+ * @param {string} outputId - Output element ID
+ */
+function swap(inputId, outputId) {
+  const inVal = getCmOrTextareaValue(inputId);
+  const outVal = getCmOrTextareaValue(outputId);
+  setCmOrTextareaValue(inputId, outVal);
+  setCmOrTextareaValue(outputId, inVal);
+
+  // Reset output highlight type override after swap
+  removeOutputType(outputId);
+
+  updateOutputVisibility(outputId);
+  saveCache(inputId, outVal);
+  saveCache(outputId, inVal);
+}
+
+// ============ Set output helper ============
+
+/**
+ * Set an output area value from a tool result, managing cache and visibility.
+ * @param {string} id - Output element ID
+ * @param {Object} result - Tool result { success, data, error, warnings? }
+ * @param {string} [hlType] - Optional highlight type override (e.g. 'json', 'yaml')
+ */
+function setOutput(id, result, hlType) {
+  const value = result.success
+    ? (typeof result.data === 'string' ? result.data : JSON.stringify(result.data, null, DEFAULT_INDENT))
+    : `${t('error.prefix')}: ${result.error}`;
+
+  setCmOrTextareaValue(id, value);
+
+  if (hlType) {
+    setOutputType(id, hlType);
+  }
+
+  updateOutputVisibility(id);
+  saveCache(id, value);
+}
+
+// ============ Cache restoration ============
+
+/**
+ * Restore cached input/output values into CM editors and textareas.
+ */
+function restoreCache() {
+  const cacheData = getCacheData();
+  for (const [id, value] of Object.entries(cacheData)) {
+    if (!value) continue;
+    if (cmEditors[id]) {
+      setEditorValue(cmEditors[id].view, value);
+      updateOutputVisibility(id);
+    } else {
+      const el = $(id);
+      if (el) {
+        el.value = value;
+        updateOutputVisibility(id);
+      }
     }
-  });
+  }
 }
 
 // ============ i18n DOM update ============
+
+/**
+ * Apply i18n translations to all elements with data-i18n attributes.
+ */
 function applyI18n() {
-  // Text content
   document.querySelectorAll('[data-i18n]').forEach(el => {
     el.textContent = t(el.dataset.i18n);
   });
-  // Placeholders
   document.querySelectorAll('[data-i18n-ph]').forEach(el => {
     el.placeholder = t(el.dataset.i18nPh);
   });
-  // Titles
   document.querySelectorAll('[data-i18n-title]').forEach(el => {
     el.title = t(el.dataset.i18nTitle);
   });
-  // Lang button label
+
   const langLabel = $('lang-label');
   if (langLabel) langLabel.textContent = getLocale().toUpperCase();
+
   // Re-inject icons (i18n textContent clears them from combined elements)
   injectIcons();
 }
 
 // ============ Init ============
 document.addEventListener('DOMContentLoaded', async () => {
-  if (new URLSearchParams(window.location.search).has('tab')) {
+  const isStandalone = new URLSearchParams(window.location.search).has('tab');
+  if (isStandalone) {
     document.body.classList.add('standalone');
   }
 
   injectIcons();
   applyI18n();
   initTheme();
+
+  // Load persisted data before tool init
+  loadCache();
+  loadOutputTypes();
+
+  // Initially hide all swap buttons
+  Object.values(SWAP_BUTTON_MAP).forEach(id => {
+    const btn = $(id);
+    if (btn) btn.style.display = 'none';
+  });
+
+  initCmEditors(isStandalone);
 
   await initNavigation();
   initOpenInTab();
@@ -133,38 +267,170 @@ document.addEventListener('DOMContentLoaded', async () => {
   initUuid();
   initIp();
   initRegex();
+
+  // Restore cached values after all panels are initialized
+  restoreCache();
+
+  // Re-render output results that depend on input values
+  setTimeout(() => restoreDerivedResults(), CACHE_RESTORE_DELAY);
+
+  // Auto-cache input textareas on typing (non-CM textareas only)
+  initInputCaching();
 });
 
-function switchTool(tool) {
-  const navItems = document.querySelectorAll('.nav-item');
-  const panels = document.querySelectorAll('.tool-panel');
-  navItems.forEach(n => n.classList.toggle('active', n.dataset.tool === tool));
-  panels.forEach(p => p.classList.toggle('hidden', p.id !== `panel-${tool}`));
+// ============ Restore derived results from cache ============
+
+/**
+ * Re-compute derived results (JWT, QS tables, etc.) after cache restoration.
+ * Deferred to ensure CM editors have their values set.
+ */
+function restoreDerivedResults() {
+  const cacheData = getCacheData();
+
+  if (cacheData['jwt-decoded'] && cacheData['jwt-input']) {
+    renderJwtResult(cacheData['jwt-input']);
+  }
+  if (cacheData['qs-parsed'] && cacheData['qs-input']) {
+    renderQsParse(cacheData['qs-input']);
+  }
+  if (cacheData['cron-parsed'] && cacheData['cron-input']) {
+    renderCronParse(cacheData['cron-input']);
+  }
+  if (cacheData['cron-nexted'] && cacheData['cron-input']) {
+    renderCronNext(cacheData['cron-input']);
+  }
+  if (cacheData['hash-computed'] && cacheData['hash-input']) {
+    computeHash();
+  }
+  if (cacheData['nb-computed'] && cacheData['nb-input']) {
+    computeNumberBase();
+  }
+  if (cacheData['color-computed'] && cacheData['color-input']) {
+    computeColor();
+  }
+  if (cacheData['ts-computed'] && cacheData['ts-input']) {
+    if (cacheData['ts-computed'] === 'stamp') {
+      computeTsToStamp();
+    } else {
+      computeTsToReadable();
+    }
+  }
+  if (cacheData['ip-computed'] && cacheData['ip-input']) {
+    computeIp();
+  }
+  if (cacheData['uuid-computed']) {
+    renderResultBox('uuid-result', [
+      { label: t('uuid.label'), value: cacheData['uuid-computed'], id: 'uuid-r-val' },
+    ]);
+  }
+  if (cacheData['rand-computed']) {
+    renderResultBox('rand-result', [
+      { label: t('rand.gen'), value: cacheData['rand-computed'], id: 'rand-r-val' },
+    ]);
+  }
 }
 
-async function initNavigation() {
-  const navItems = document.querySelectorAll('.nav-item');
+// ============ Initialize CodeMirror editors ============
 
-  // Restore last used tool
+/**
+ * Create CodeMirror editor instances for all input/output panels.
+ * @param {boolean} isStandalone - Whether running in standalone tab mode
+ */
+function initCmEditors(isStandalone) {
+  let mdRenderTimer;
+
+  const inputEditors = [
+    { id: 'json-input', lang: 'json', ph: t('json.placeholder') },
+    { id: 'yaml-input', lang: 'yaml', ph: t('yaml.placeholder') },
+    { id: 'qs-input', lang: 'querystring', ph: t('qs.placeholder') },
+    { id: 'jwt-input', lang: 'jwt', ph: t('jwt.placeholder') },
+    { id: 'cron-input', lang: 'cron', ph: t('cron.placeholder'), singleLine: true },
+    { id: 'md-input', lang: 'markdown', ph: t('md.placeholder') },
+  ];
+
+  const outputEditors = [
+    { id: 'json-output', lang: 'json' },
+    { id: 'yaml-output', lang: 'yaml' },
+    { id: 'qs-output', lang: 'querystring' },
+  ];
+
+  for (const cfg of inputEditors) {
+    const container = $(cfg.id + '-cm');
+    if (!container) continue;
+    const view = createEditor({
+      parent: container,
+      lang: cfg.lang,
+      placeholder: cfg.ph || '',
+      readOnly: false,
+      singleLine: cfg.singleLine || false,
+      isStandalone,
+      onChange: (value) => {
+        saveCache(cfg.id, value);
+        // Markdown: live preview rendering
+        if (cfg.id === 'md-input') {
+          clearTimeout(mdRenderTimer);
+          mdRenderTimer = setTimeout(() => {
+            const html = MarkdownTool.render(value);
+            const preview = $('md-preview');
+            if (preview) preview.innerHTML = html;
+            const htmlEl = $('md-html');
+            if (htmlEl) htmlEl.value = html;
+          }, MD_RENDER_DEBOUNCE);
+        }
+      },
+    });
+    cmEditors[cfg.id] = { view, lang: cfg.lang };
+  }
+
+  for (const cfg of outputEditors) {
+    const container = $(cfg.id + '-cm');
+    if (!container) continue;
+    const view = createEditor({
+      parent: container,
+      lang: cfg.lang,
+      readOnly: true,
+      isStandalone,
+    });
+    cmEditors[cfg.id] = { view, lang: cfg.lang };
+  }
+}
+
+// ============ Navigation ============
+
+/**
+ * Switch the active tool panel.
+ * @param {string} tool - Tool identifier (e.g. 'base64', 'json')
+ */
+function switchTool(tool) {
+  document.querySelectorAll('.nav-item').forEach(n =>
+    n.classList.toggle('active', n.dataset.tool === tool)
+  );
+  document.querySelectorAll('.tool-panel').forEach(p =>
+    p.classList.toggle('hidden', p.id !== `panel-${tool}`)
+  );
+}
+
+/** Initialize sidebar navigation: restore last tool and bind click events. */
+async function initNavigation() {
   try {
-    const result = await chrome.storage.local.get('devnip-last-tool');
-    const lastTool = result['devnip-last-tool'];
+    const result = await chrome.storage.local.get(LAST_TOOL_KEY);
+    const lastTool = result[LAST_TOOL_KEY];
     if (lastTool && document.querySelector(`.nav-item[data-tool="${lastTool}"]`)) {
       switchTool(lastTool);
     }
   } catch { /* ignore */ }
 
-  navItems.forEach(item => {
+  document.querySelectorAll('.nav-item').forEach(item => {
     item.addEventListener('click', (e) => {
       e.preventDefault();
       const tool = item.dataset.tool;
       switchTool(tool);
-      try { chrome.storage.local.set({ 'devnip-last-tool': tool }); } catch { /* ignore */ }
+      try { chrome.storage.local.set({ [LAST_TOOL_KEY]: tool }); } catch { /* ignore */ }
     });
   });
 }
 
-// ============ Open in tab ============
+/** Open popup in a new browser tab. */
 function initOpenInTab() {
   on('open-tab', 'click', () => {
     const url = chrome.runtime.getURL('popup/popup.html?tab=1');
@@ -173,7 +439,7 @@ function initOpenInTab() {
   });
 }
 
-// ============ Language toggle ============
+/** Bind language toggle button. */
 function initLangToggle() {
   on('btn-lang', 'click', () => {
     toggleLocale();
@@ -181,48 +447,119 @@ function initLangToggle() {
   });
 }
 
-// ============ Theme ============
-const THEME_CYCLE = ['system', 'light', 'dark'];
-const THEME_ICONS = { system: 'themeSys', light: 'themeLt', dark: 'themeDk' };
-
-function applyTheme(mode) {
-  const html = document.documentElement;
-  if (mode === 'system') {
-    html.removeAttribute('data-theme');
-  } else {
-    html.setAttribute('data-theme', mode);
-  }
-  // Update button icon
-  const iconEl = $('theme-icon');
-  if (iconEl && icons[THEME_ICONS[mode]]) {
-    iconEl.innerHTML = icons[THEME_ICONS[mode]];
-  }
-}
-
-function initTheme() {
-  let mode = 'system';
-  try {
-    const saved = localStorage.getItem('devnip-theme');
-    if (saved && THEME_CYCLE.includes(saved)) mode = saved;
-  } catch { /* ignore */ }
-  applyTheme(mode);
-
-  on('btn-theme', 'click', () => {
-    const current = localStorage.getItem('devnip-theme') || 'system';
-    const idx = THEME_CYCLE.indexOf(current);
-    const next = THEME_CYCLE[(idx + 1) % THEME_CYCLE.length];
-    try { localStorage.setItem('devnip-theme', next); } catch { /* ignore */ }
-    applyTheme(next);
-  });
-}
-
 // ============ Clear / Copy buttons ============
+
+/**
+ * Clear all outputs, result boxes, and cached markers within a tool panel.
+ * @param {HTMLElement|null} container - The .tool-panel element
+ */
+function clearPanel(container) {
+  if (!container) return;
+
+  // Clear output CM editors
+  container.querySelectorAll('[id$="-output-cm"]').forEach(cmContainer => {
+    const outId = cmContainer.id.replace('-cm', '');
+    if (cmEditors[outId]) {
+      setEditorValue(cmEditors[outId].view, '');
+      saveCache(outId, '');
+    }
+  });
+
+  // Clear output textareas (non-CM)
+  container.querySelectorAll('.io-area-output .io-textarea').forEach(out => {
+    if (cmEditors[out.id]) return;
+    out.value = '';
+    saveCache(out.id, '');
+    removeOutputType(out.id);
+    updateOutputVisibility(out.id);
+  });
+
+  // Clear output type overrides for CM outputs
+  container.querySelectorAll('[id$="-output-cm"]').forEach(cmContainer => {
+    const outId = cmContainer.id.replace('-cm', '');
+    removeOutputType(outId);
+    updateOutputVisibility(outId);
+  });
+
+  // Hide special result boxes
+  container.querySelectorAll('.result-box, .jwt-result, .decode-layers, .qs-table-wrap').forEach(el => {
+    el.classList.add('hidden');
+  });
+
+  // Clear cached computation markers
+  CACHE_MARKERS.forEach(key => {
+    if (getCacheData()[key]) {
+      saveCache(key, '');
+    }
+  });
+
+  // Clear diff results
+  const diffResult = container.querySelector('.diff-result');
+  const diffStats = container.querySelector('.text-stats');
+  if (diffResult) diffResult.classList.add('hidden');
+  if (diffStats) diffStats.classList.add('hidden');
+
+  // Clear Markdown preview
+  const mdPreview = container.querySelector('#md-preview');
+  if (mdPreview) mdPreview.innerHTML = '';
+  const mdHtml = container.querySelector('#md-html');
+  if (mdHtml) mdHtml.value = '';
+
+  // Clear JSON warnings
+  const jsonWarn = container.querySelector('#json-warnings');
+  if (jsonWarn) jsonWarn.classList.add('hidden');
+
+  // Clear regex-specific elements
+  const regexError = container.querySelector('#regex-error');
+  if (regexError) regexError.classList.add('hidden');
+  const regexHL = container.querySelector('#regex-highlight');
+  if (regexHL) regexHL.classList.add('hidden');
+  const regexMatches = container.querySelector('#regex-matches');
+  if (regexMatches) regexMatches.classList.add('hidden');
+}
+
+/** Bind clear and copy buttons in all tool panels. */
 function initClearCopyButtons() {
   document.querySelectorAll('.btn-clear').forEach(btn => {
     btn.addEventListener('click', () => {
       const targetId = btn.dataset.clear;
-      const target = $(targetId);
-      if (target) { target.value = ''; target.focus(); }
+
+      // Clear CM editor or textarea/input
+      if (cmEditors[targetId]) {
+        setEditorValue(cmEditors[targetId].view, '');
+        focusEditor(cmEditors[targetId].view);
+      } else {
+        const target = $(targetId);
+        if (target) {
+          target.value = '';
+          target.focus();
+        }
+      }
+      saveCache(targetId, '');
+
+      // Regex pattern clear: also clear flags
+      if (targetId === 'regex-pattern') {
+        const flagsEl = $('regex-flags');
+        if (flagsEl) flagsEl.value = 'g';
+        const replaceEl = $('regex-replace');
+        if (replaceEl) replaceEl.value = '';
+        const textEl = $('regex-text');
+        if (textEl) { textEl.value = ''; saveCache('regex-text', ''); }
+      }
+
+      // Diff clear: also clear the other input
+      if (targetId === 'diff-a') {
+        const other = $('diff-b');
+        if (other) { other.value = ''; saveCache('diff-b', ''); }
+      } else if (targetId === 'diff-b') {
+        const other = $('diff-a');
+        if (other) { other.value = ''; saveCache('diff-a', ''); }
+      }
+
+      const container = cmEditors[targetId]
+        ? cmEditors[targetId].view.dom.closest('.tool-panel')
+        : $(targetId)?.closest('.tool-panel');
+      clearPanel(container);
     });
   });
 
@@ -230,8 +567,7 @@ function initClearCopyButtons() {
     btn.addEventListener('click', () => {
       let text = '';
       if (btn.dataset.copy) {
-        const el = $(btn.dataset.copy);
-        text = el ? el.value || '' : '';
+        text = getCmOrTextareaValue(btn.dataset.copy);
       } else if (btn.dataset.copyText) {
         const el = $(btn.dataset.copyText);
         text = el ? el.textContent || '' : '';
@@ -241,7 +577,19 @@ function initClearCopyButtons() {
   });
 }
 
+/** Auto-cache non-CM input fields on typing. */
+function initInputCaching() {
+  const inputs = document.querySelectorAll('.io-textarea:not([readonly]), .io-input');
+  inputs.forEach(el => {
+    if (!el.id || cmEditors[el.id]) return;
+    el.addEventListener('input', () => {
+      saveCache(el.id, el.value);
+    });
+  });
+}
+
 // ============ Base64 ============
+
 function initBase64() {
   on('base64-encode', 'click', () => {
     const urlSafe = $('base64-urlsafe')?.checked || false;
@@ -254,6 +602,7 @@ function initBase64() {
 }
 
 // ============ URL ============
+
 function initUrl() {
   on('url-encode-comp', 'click', () => {
     setOutput('url-output', UrlTool.encodeComponent($('url-input').value));
@@ -267,12 +616,15 @@ function initUrl() {
   on('url-recursive', 'click', () => {
     const r = UrlTool.recursiveDecode($('url-input').value, $('url-form-mode')?.checked || false);
     setOutput('url-output', r);
-    if (r.layers && r.layers.length > 1) showToast(`Recursive: ${r.layers.length - 1} layers`);
+    if (r.layers && r.layers.length > 1) {
+      showToast(`Recursive: ${r.layers.length - 1} layers`);
+    }
   });
   on('url-swap', 'click', () => swap('url-input', 'url-output'));
 }
 
 // ============ HTML Entity ============
+
 function initHtmlEntity() {
   on('html-encode', 'click', () => {
     setOutput('html-output', HtmlEntityTool.encode($('html-input').value, $('html-encode-all')?.checked || false));
@@ -284,6 +636,7 @@ function initHtmlEntity() {
 }
 
 // ============ Unicode ============
+
 function initUnicode() {
   on('unicode-encode', 'click', () => {
     setOutput('unicode-output', UnicodeTool.encode($('unicode-input').value, $('unicode-encode-all')?.checked || false));
@@ -295,6 +648,7 @@ function initUnicode() {
 }
 
 // ============ Smart Decode ============
+
 function initSmartDecode() {
   on('smart-decode-btn', 'click', () => {
     const input = $('smart-input')?.value || '';
@@ -308,17 +662,23 @@ function initSmartDecode() {
           if (i === 0) return;
           const div = document.createElement('div');
           div.className = 'decode-layer';
-          div.innerHTML = `<span class="decode-layer-type">${escapeHtml(l.type)}</span><span class="decode-layer-value" title="${escapeHtml(l.value)}">${escapeHtml(l.value)}</span>`;
+          div.innerHTML = `<span class="decode-layer-type">${escapeHtml(l.type)}</span>` +
+            `<span class="decode-layer-value" title="${escapeHtml(l.value)}">${escapeHtml(l.value)}</span>`;
           layersEl.appendChild(div);
         });
       }
     }
     const output = $('smart-output');
-    if (output) output.value = r.data.result;
+    if (output) {
+      output.value = r.data.result;
+      updateOutputVisibility('smart-output');
+      saveCache('smart-output', output.value);
+    }
   });
 }
 
 // ============ JSON ============
+
 function initJson() {
   function updateJsonToYamlSpacingVisibility() {
     const isFlow = $('json-to-yaml-array-style')?.value === 'flow';
@@ -332,10 +692,10 @@ function initJson() {
   updateJsonToYamlSpacingVisibility();
 
   on('json-format', 'click', () => {
-    const indent = parseInt($('json-indent')?.value || '2');
+    const indent = parseInt($('json-indent')?.value || String(DEFAULT_INDENT));
     const relaxed = $('json-relaxed')?.checked || false;
-    const r = JsonTool.format($('json-input').value, indent, 'none', relaxed);
-    setOutput('json-output', r);
+    const r = JsonTool.format(getCmOrTextareaValue('json-input'), indent, 'none', relaxed);
+    setOutput('json-output', r, 'json');
     const warn = $('json-warnings');
     if (warn) {
       if (r.warnings && r.warnings.length) {
@@ -348,29 +708,31 @@ function initJson() {
   });
   on('json-minify', 'click', () => {
     const relaxed = $('json-relaxed')?.checked || false;
-    setOutput('json-output', JsonTool.minify($('json-input').value, relaxed));
+    setOutput('json-output', JsonTool.minify(getCmOrTextareaValue('json-input'), relaxed), 'json');
   });
   on('json-sort', 'click', () => {
-    const indent = parseInt($('json-indent')?.value || '2');
+    const indent = parseInt($('json-indent')?.value || String(DEFAULT_INDENT));
     const relaxed = $('json-relaxed')?.checked || false;
     const sortMode = $('json-sort-mode')?.value || 'key-asc';
-    setOutput('json-output', JsonTool.sort($('json-input').value, sortMode, indent, relaxed));
+    setOutput('json-output', JsonTool.sort(getCmOrTextareaValue('json-input'), sortMode, indent, relaxed), 'json');
   });
   on('json-to-yaml', 'click', () => {
     const relaxed = $('json-relaxed')?.checked || false;
-    const input = relaxed ? JsonTool._relaxedClean($('json-input').value) : $('json-input').value;
-    const yamlIndent = parseInt($('json-to-yaml-indent')?.value || '2');
+    const inputVal = getCmOrTextareaValue('json-input');
+    const input = relaxed ? JsonTool._relaxedClean(inputVal) : inputVal;
+    const yamlIndent = parseInt($('json-to-yaml-indent')?.value || String(DEFAULT_INDENT));
     const opts = {
       arrayStyle: $('json-to-yaml-array-style')?.value || 'block',
       arraySpacing: $('json-to-yaml-array-spacing')?.value || 'space',
       removeQuotes: $('json-to-yaml-remove-quotes')?.checked || false,
     };
-    setOutput('json-output', YamlTool.fromJson(input, yamlIndent, opts));
+    setOutput('json-output', YamlTool.fromJson(input, yamlIndent, opts), 'yaml');
   });
   on('json-swap', 'click', () => swap('json-input', 'json-output'));
 }
 
 // ============ YAML ============
+
 function initYaml() {
   function getYamlOpts() {
     return {
@@ -392,48 +754,76 @@ function initYaml() {
   updateSpacingVisibility();
 
   on('yaml-format', 'click', () => {
-    const indent = parseInt($('yaml-indent')?.value || '2');
-    const input = $('yaml-input').value;
-    const opts = getYamlOpts();
-    setOutput('yaml-output', YamlTool.format(input, indent, opts));
+    const indent = parseInt($('yaml-indent')?.value || String(DEFAULT_INDENT));
+    const input = getCmOrTextareaValue('yaml-input');
+    setOutput('yaml-output', YamlTool.format(input, indent, getYamlOpts()), 'yaml');
   });
   on('yaml-sort', 'click', () => {
-    const indent = parseInt($('yaml-indent')?.value || '2');
+    const indent = parseInt($('yaml-indent')?.value || String(DEFAULT_INDENT));
     const sortMode = $('yaml-sort-mode')?.value || 'key-asc';
-    const opts = getYamlOpts();
-    setOutput('yaml-output', YamlTool.sort($('yaml-input').value, sortMode, indent, opts));
+    setOutput('yaml-output', YamlTool.sort(getCmOrTextareaValue('yaml-input'), sortMode, indent, getYamlOpts()), 'yaml');
   });
   on('yaml-to-json', 'click', () => {
-    const indent = parseInt($('yaml-to-json-indent')?.value || '2');
-    setOutput('yaml-output', YamlTool.toJson($('yaml-input').value, indent));
+    const indent = parseInt($('yaml-to-json-indent')?.value || String(DEFAULT_INDENT));
+    setOutput('yaml-output', YamlTool.toJson(getCmOrTextareaValue('yaml-input'), indent), 'json');
   });
   on('yaml-swap', 'click', () => swap('yaml-input', 'yaml-output'));
 }
 
 // ============ Query String ============
+
+/**
+ * Parse a query string and render the key-value table.
+ * @param {string} input - URL or query string to parse
+ */
+function renderQsParse(input) {
+  if (!input) return;
+  const r = QueryStringTool.parse(input);
+  const wrap = $('qs-table-wrap');
+  const table = $('qs-table');
+  if (!table) return;
+  const tbody = table.querySelector('tbody');
+  if (!tbody) return;
+  tbody.innerHTML = '';
+
+  if (r.success && r.data.length > 0) {
+    if (wrap) wrap.classList.remove('hidden');
+    r.data.forEach((p) => {
+      const tr = document.createElement('tr');
+      const hasValue = p.value !== null;
+      tr.innerHTML =
+        `<td><span class="qs-cell-text">${escapeHtml(p.key)}</span>` +
+        `<button class="btn-small btn-copy qs-cell-copy"><span class="btn-icon" data-icon="copy"></span></button></td>` +
+        `<td><span class="qs-cell-text">${hasValue ? escapeHtml(p.value) : `<em style="color:var(--text-muted)">${t('qs.noValue')}</em>`}</span>` +
+        `${hasValue ? '<button class="btn-small btn-copy qs-cell-copy"><span class="btn-icon" data-icon="copy"></span></button>' : ''}</td>`;
+      tbody.appendChild(tr);
+    });
+
+    // Inject icons and bind copy handlers for QS table
+    table.querySelectorAll('[data-icon]').forEach(el => {
+      const name = el.dataset.icon;
+      if (icons[name]) el.innerHTML = icons[name];
+    });
+    table.querySelectorAll('.qs-cell-copy').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const cell = btn.closest('td');
+        const textEl = cell?.querySelector('.qs-cell-text');
+        const text = textEl ? textEl.textContent || '' : '';
+        if (text) copyToClipboard(text);
+      });
+    });
+    saveCache('qs-parsed', '1');
+  } else {
+    if (wrap) wrap.classList.add('hidden');
+    if (!r.success) {
+      setOutput('qs-output', r, 'querystring');
+    }
+  }
+}
+
 function initQueryString() {
   on('qs-parse', 'click', () => {
-    const r = QueryStringTool.parse($('qs-input').value);
-    const wrap = $('qs-table-wrap');
-    const table = $('qs-table');
-    if (!table) return;
-    const tbody = table.querySelector('tbody');
-    if (!tbody) return;
-    tbody.innerHTML = '';
-    if (r.success && r.data.length > 0) {
-      if (wrap) wrap.classList.remove('hidden');
-      r.data.forEach(p => {
-        const tr = document.createElement('tr');
-        tr.innerHTML = `<td>${escapeHtml(p.key)}</td><td>${p.value === null ? `<em style="color:#94a3b8">${t('qs.noValue')}</em>` : escapeHtml(p.value)}</td>`;
-        tbody.appendChild(tr);
-      });
-    } else {
-      if (wrap) wrap.classList.add('hidden');
-      if (!r.success) {
-        const output = $('qs-output');
-        if (output) output.value = `${t('error.prefix')}: ${r.error}`;
-      }
-    }
+    renderQsParse(getCmOrTextareaValue('qs-input'));
   });
   on('qs-build', 'click', () => {
     const table = $('qs-table');
@@ -441,163 +831,272 @@ function initQueryString() {
     const rows = table.querySelectorAll('tbody tr');
     const params = Array.from(rows).map(tr => {
       const cells = tr.querySelectorAll('td');
-      return { key: cells[0].textContent, value: cells[1].querySelector('em') ? null : cells[1].textContent };
+      return {
+        key: cells[0].textContent,
+        value: cells[1].querySelector('em') ? null : cells[1].textContent,
+      };
     });
-    setOutput('qs-output', QueryStringTool.build(params));
+    setOutput('qs-output', QueryStringTool.build(params), 'querystring');
   });
 }
 
 // ============ JWT ============
+
+/**
+ * Recursively highlight a JSON value into HTML with syntax tokens.
+ * @param {*} val - JSON value
+ * @param {number} indent - Current indentation level
+ * @returns {string} HTML string
+ */
+function highlightJsonValue(val, indent) {
+  const pad = ' '.repeat(indent);
+  const pad2 = ' '.repeat(indent + DEFAULT_INDENT);
+
+  if (val === null) return '<span class="hl-bool">null</span>';
+  if (typeof val === 'boolean') return `<span class="hl-bool">${val}</span>`;
+  if (typeof val === 'number') return `<span class="hl-num">${val}</span>`;
+  if (typeof val === 'string') return `<span class="hl-str">"${escapeHtml(val)}"</span>`;
+
+  if (Array.isArray(val)) {
+    if (val.length === 0) return '<span class="hl-punct">[]</span>';
+    const items = val.map(v => `${pad2}${highlightJsonValue(v, indent + DEFAULT_INDENT)}`);
+    return `<span class="hl-punct">[</span>\n${items.join('<span class="hl-punct">,</span>\n')}\n${pad}<span class="hl-punct">]</span>`;
+  }
+
+  if (typeof val === 'object') {
+    const keys = Object.keys(val);
+    if (keys.length === 0) return '<span class="hl-punct">{}</span>';
+    const entries = keys.map(k => {
+      const kStr = `<span class="hl-key">"${escapeHtml(k)}"</span>`;
+      const vStr = highlightJsonValue(val[k], indent + DEFAULT_INDENT);
+      return `${pad2}${kStr}<span class="hl-punct">:</span> ${vStr}`;
+    });
+    return `<span class="hl-punct">{</span>\n${entries.join('<span class="hl-punct">,</span>\n')}\n${pad}<span class="hl-punct">}</span>`;
+  }
+
+  return escapeHtml(String(val));
+}
+
+/**
+ * Decode a JWT token and render the result sections.
+ * @param {string} input - JWT token string
+ */
+function renderJwtResult(input) {
+  if (!input) return;
+  const r = JwtTool.decode(input);
+  const result = $('jwt-result');
+  if (r.success) {
+    if (result) result.classList.remove('hidden');
+    const headerEl = $('jwt-header');
+    if (headerEl) headerEl.innerHTML = highlightJsonValue(r.data.headerObj, 0);
+    const payloadEl = $('jwt-payload');
+    if (payloadEl) payloadEl.innerHTML = highlightJsonValue(r.data.payloadObj, 0);
+    const sigEl = $('jwt-signature');
+    if (sigEl) sigEl.textContent = r.data.signature;
+    const expEl = $('jwt-exp-info');
+    if (expEl) {
+      if (r.data.expInfo) {
+        expEl.classList.remove('hidden', 'expired', 'valid');
+        expEl.classList.add(r.data.expInfo.expired ? 'expired' : 'valid');
+        expEl.textContent = r.data.expInfo.expired
+          ? `${t('jwt.expired')} (${r.data.expInfo.relative}, ${r.data.expInfo.expDate})`
+          : `${t('jwt.valid')} (${r.data.expInfo.relative}, ${r.data.expInfo.expDate})`;
+      } else {
+        expEl.classList.add('hidden');
+      }
+    }
+    injectIcons();
+    initClearCopyButtons();
+    saveCache('jwt-decoded', '1');
+  } else {
+    if (result) result.classList.add('hidden');
+    showToast(r.error, TOAST_ERROR_DURATION);
+  }
+}
+
 function initJwt() {
   on('jwt-decode', 'click', () => {
-    const input = $('jwt-input')?.value || '';
-    if (!input.trim()) return;
-    const r = JwtTool.decode(input);
-    const result = $('jwt-result');
-    if (r.success) {
-      if (result) result.classList.remove('hidden');
-      const headerEl = $('jwt-header');
-      if (headerEl) headerEl.textContent = r.data.header;
-      const payloadEl = $('jwt-payload');
-      if (payloadEl) payloadEl.textContent = r.data.payload;
-      const sigEl = $('jwt-signature');
-      if (sigEl) sigEl.textContent = r.data.signature;
-      const expEl = $('jwt-exp-info');
-      if (expEl) {
-        if (r.data.expInfo) {
-          expEl.classList.remove('hidden', 'expired', 'valid');
-          expEl.classList.add(r.data.expInfo.expired ? 'expired' : 'valid');
-          expEl.textContent = r.data.expInfo.expired
-            ? `${t('jwt.expired')} (${r.data.expInfo.relative}, ${r.data.expInfo.expDate})`
-            : `${t('jwt.valid')} (${r.data.expInfo.relative}, ${r.data.expInfo.expDate})`;
-        } else {
-          expEl.classList.add('hidden');
-        }
-      }
-    } else {
-      if (result) result.classList.add('hidden');
-      showToast(r.error, 5000);
-    }
+    renderJwtResult(getCmOrTextareaValue('jwt-input').trim());
   });
 }
 
 // ============ Cron ============
+
+/**
+ * Parse a cron expression and render description.
+ * @param {string} input - Cron expression
+ */
+function renderCronParse(input) {
+  if (!input) return;
+  const r = CronTool.parse(input);
+  if (r.success) {
+    renderResultBox('cron-desc', [
+      { label: t('cron.description'), value: r.data.description, id: 'cron-r-desc' },
+      { label: t('cron.format'), value: r.data.format, id: 'cron-r-fmt' },
+    ]);
+    saveCache('cron-parsed', '1');
+  } else {
+    renderResultBox('cron-desc', [
+      { label: t('error.prefix'), value: r.error, id: 'cron-r-err' },
+    ]);
+  }
+}
+
+/**
+ * Compute next N runs for a cron expression.
+ * @param {string} input - Cron expression
+ */
+function renderCronNext(input) {
+  if (!input) return;
+  const tz = $('cron-timezone')?.value || DEFAULT_TIMEZONE;
+  const r = CronTool.nextRuns(input, 10, tz);
+  if (r.success) {
+    const rows = r.data.map((time, i) => ({
+      label: `#${i + 1}`,
+      value: time,
+      id: `cron-r-run${i}`,
+    }));
+    rows.push({ label: t('ts.timezone'), value: tz, id: 'cron-r-tz' });
+    renderResultBox('cron-runs', rows);
+    saveCache('cron-nexted', '1');
+  } else {
+    renderResultBox('cron-runs', [
+      { label: t('error.prefix'), value: r.error, id: 'cron-r-err' },
+    ]);
+  }
+}
+
 function initCron() {
   on('cron-parse', 'click', () => {
-    const input = $('cron-input')?.value || '';
-    if (!input.trim()) return;
-    const r = CronTool.parse(input);
-    const desc = $('cron-desc');
-    if (desc) {
-      desc.classList.remove('hidden');
-      desc.textContent = r.success ? `${r.data.description} (${r.data.format})` : `${t('error.prefix')}: ${r.error}`;
-    }
+    renderCronParse(getCmOrTextareaValue('cron-input').trim());
   });
   on('cron-next', 'click', () => {
-    const input = $('cron-input')?.value || '';
-    if (!input.trim()) return;
-    const r = CronTool.nextRuns(input, 10);
-    const runs = $('cron-runs');
-    if (runs) {
-      runs.classList.remove('hidden');
-      if (r.success) {
-        runs.innerHTML = r.data.map((time, i) => `<div>${i + 1}. ${time}</div>`).join('');
-      } else {
-        runs.textContent = `${t('error.prefix')}: ${r.error}`;
-      }
-    }
+    renderCronNext(getCmOrTextareaValue('cron-input').trim());
   });
 }
 
 // ============ Timestamp ============
+
 function initTimestamp() {
-  on('ts-to-readable', 'click', () => {
-    const tz = $('ts-timezone')?.value || 'UTC';
-    const input = $('ts-input')?.value || '';
-    const r = TimestampTool.toReadable(input, tz);
-    const output = $('ts-output');
-    if (!output) return;
-    if (r.success) {
-      output.value = `${r.meta.datetime}\nISO: ${r.meta.iso}\n${t('ts.timezone')}: ${r.meta.timezone}\n${t('ts.unit')}: ${r.meta.unit === 's' ? t('ts.unitSec') : t('ts.unitMs')} ${t('ts.autoDetect')}\n${t('ts.relative')}: ${r.meta.relative}`;
-    } else {
-      output.value = `${t('error.prefix')}: ${r.error}`;
-    }
-  });
-  on('ts-to-stamp', 'click', () => {
-    const input = $('ts-input')?.value || '';
-    const r = TimestampTool.fromReadable(input);
-    const output = $('ts-output');
-    if (!output) return;
-    if (r.success) {
-      output.value = `${t('ts.seconds')}: ${r.data}\n${t('ts.milliseconds')}: ${parseInt(r.data) * 1000}`;
-    } else {
-      output.value = `${t('error.prefix')}: ${r.error}`;
-    }
-  });
+  on('ts-to-readable', 'click', computeTsToReadable);
+  on('ts-to-stamp', 'click', computeTsToStamp);
   on('ts-now', 'click', () => {
     const r = TimestampTool.now();
     const input = $('ts-input');
-    const output = $('ts-output');
-    if (input) input.value = String(r.data.seconds);
-    if (output) output.value = `${t('ts.seconds')}: ${r.data.seconds}\n${t('ts.milliseconds')}: ${r.data.milliseconds}\nISO: ${r.data.iso}`;
+    if (input) { input.value = String(r.data.seconds); saveCache('ts-input', input.value); }
+    renderResultBox('ts-result', [
+      { label: t('ts.seconds'), value: String(r.data.seconds), id: 'ts-r-sec' },
+      { label: t('ts.milliseconds'), value: String(r.data.milliseconds), id: 'ts-r-ms' },
+      { label: t('ts.iso'), value: r.data.iso, id: 'ts-r-iso' },
+    ]);
+    saveCache('ts-computed', 'readable');
   });
+}
+
+function computeTsToReadable() {
+  const tz = $('ts-timezone')?.value || DEFAULT_TIMEZONE;
+  const input = $('ts-input')?.value || '';
+  const r = TimestampTool.toReadable(input, tz);
+  if (r.success) {
+    renderResultBox('ts-result', [
+      { label: t('ts.datetime'), value: r.meta.datetime, id: 'ts-r-datetime' },
+      { label: t('ts.iso'), value: r.meta.iso, id: 'ts-r-iso' },
+      { label: t('ts.timezone'), value: r.meta.timezone, id: 'ts-r-tz' },
+      { label: t('ts.unit'), value: `${r.meta.unit === 's' ? t('ts.unitSec') : t('ts.unitMs')} ${t('ts.autoDetect')}`, id: 'ts-r-unit' },
+      { label: t('ts.relative'), value: r.meta.relative, id: 'ts-r-relative' },
+    ]);
+    saveCache('ts-computed', 'readable');
+  } else {
+    renderResultBox('ts-result', [
+      { label: t('error.prefix'), value: r.error, id: 'ts-r-err' },
+    ]);
+  }
+}
+
+function computeTsToStamp() {
+  const input = $('ts-input')?.value || '';
+  const r = TimestampTool.fromReadable(input);
+  if (r.success) {
+    renderResultBox('ts-result', [
+      { label: t('ts.seconds'), value: r.data, id: 'ts-r-sec' },
+      { label: t('ts.milliseconds'), value: String(parseInt(r.data) * 1000), id: 'ts-r-ms' },
+    ]);
+    saveCache('ts-computed', 'stamp');
+  } else {
+    renderResultBox('ts-result', [
+      { label: t('error.prefix'), value: r.error, id: 'ts-r-err' },
+    ]);
+  }
 }
 
 // ============ Number Base ============
+
 function initNumberBase() {
-  on('nb-convert', 'click', () => {
-    const input = $('nb-input')?.value || '';
-    if (!input.trim()) return;
-    const r = NumberBaseTool.convert(input);
-    const result = $('nb-result');
-    if (r.success) {
-      if (result) result.classList.remove('hidden');
-      const binEl = $('nb-bin');
-      if (binEl) binEl.textContent = r.data.BIN_F;
-      const octEl = $('nb-oct');
-      if (octEl) octEl.textContent = r.data.OCT;
-      const decEl = $('nb-dec');
-      if (decEl) decEl.textContent = r.data.DEC;
-      const hexEl = $('nb-hex');
-      if (hexEl) hexEl.textContent = r.data.HEX_F;
-    } else {
-      if (result) result.classList.add('hidden');
-      showToast(r.error, 5000);
-    }
-  });
+  on('nb-convert', 'click', computeNumberBase);
+}
+
+function computeNumberBase() {
+  const input = $('nb-input')?.value || '';
+  if (!input.trim()) return;
+  const r = NumberBaseTool.convert(input);
+  const result = $('nb-result');
+  if (r.success) {
+    if (result) result.classList.remove('hidden');
+    const binEl = $('nb-bin');
+    if (binEl) binEl.textContent = r.data.BIN_F;
+    const octEl = $('nb-oct');
+    if (octEl) octEl.textContent = r.data.OCT;
+    const decEl = $('nb-dec');
+    if (decEl) decEl.textContent = r.data.DEC;
+    const hexEl = $('nb-hex');
+    if (hexEl) hexEl.textContent = r.data.HEX_F;
+    saveCache('nb-computed', '1');
+  } else {
+    if (result) result.classList.add('hidden');
+    showToast(r.error, TOAST_ERROR_DURATION);
+  }
 }
 
 // ============ Color ============
+
 function initColor() {
-  on('color-convert', 'click', () => {
-    const input = $('color-input')?.value || '';
-    if (!input.trim()) return;
-    const r = ColorTool.parse(input);
-    const result = $('color-result');
-    if (r.success) {
-      if (result) result.classList.remove('hidden');
-      const all = ColorTool.toAll(r.data);
-      const hexEl = $('color-hex');
-      if (hexEl) hexEl.textContent = all.hex;
-      const rgbEl = $('color-rgb');
-      if (rgbEl) rgbEl.textContent = all.rgb;
-      const hslEl = $('color-hsl');
-      if (hslEl) hslEl.textContent = all.hsl;
-      const preview = $('color-preview');
-      if (preview) preview.style.backgroundColor = all.rgb;
-    } else {
-      if (result) result.classList.add('hidden');
-      showToast(r.error, 5000);
-    }
-  });
+  on('color-convert', 'click', computeColor);
+}
+
+function computeColor() {
+  const input = $('color-input')?.value || '';
+  if (!input.trim()) return;
+  const r = ColorTool.parse(input);
+  const result = $('color-result');
+  if (r.success) {
+    if (result) result.classList.remove('hidden');
+    const all = ColorTool.toAll(r.data);
+    const hexEl = $('color-hex');
+    if (hexEl) hexEl.textContent = all.hex;
+    const rgbEl = $('color-rgb');
+    if (rgbEl) rgbEl.textContent = all.rgb;
+    const hslEl = $('color-hsl');
+    if (hslEl) hslEl.textContent = all.hsl;
+    const preview = $('color-preview');
+    if (preview) preview.style.backgroundColor = all.rgb;
+    saveCache('color-computed', '1');
+  } else {
+    if (result) result.classList.add('hidden');
+    showToast(r.error, TOAST_ERROR_DURATION);
+  }
 }
 
 // ============ Text ============
+
 function initText() {
   const getInput = () => $('text-input')?.value || '';
   const setResult = (v) => {
     const el = $('text-output');
-    if (el) el.value = v;
+    if (el) {
+      el.value = v;
+      updateOutputVisibility('text-output');
+      saveCache('text-output', v);
+    }
   };
 
   on('text-upper', 'click', () => setResult(TextTool.toUpperCase(getInput())));
@@ -623,6 +1122,7 @@ function initText() {
 }
 
 // ============ Diff ============
+
 function initDiff() {
   on('diff-compare', 'click', () => {
     const a = $('diff-a')?.value || '';
@@ -648,117 +1148,148 @@ function initDiff() {
 }
 
 // ============ Markdown ============
+
 function initMarkdown() {
-  let mdTimer;
-  on('md-input', 'input', () => {
-    clearTimeout(mdTimer);
-    mdTimer = setTimeout(() => {
-      const input = $('md-input')?.value || '';
+  // Render initial Markdown from cache
+  setTimeout(() => {
+    const input = getCmOrTextareaValue('md-input');
+    if (input) {
       const html = MarkdownTool.render(input);
       const preview = $('md-preview');
       if (preview) preview.innerHTML = html;
       const htmlEl = $('md-html');
       if (htmlEl) htmlEl.value = html;
-    }, 200);
-  });
+    }
+  }, MD_CACHE_RESTORE_DELAY);
 }
 
 // ============ Hash ============
+
 function initHash() {
-  on('hash-compute', 'click', async () => {
-    const input = $('hash-input')?.value || '';
-    const r = await HashTool.computeAll(input);
-    const result = $('hash-result');
-    if (r.success && result) {
-      result.classList.remove('hidden');
-      const upper = $('hash-upper')?.checked || false;
-      for (const [alg, val] of Object.entries(r.data)) {
-        const id = 'hash-' + alg.toLowerCase().replace('-', '');
-        const el = $(id);
-        if (el) el.textContent = upper ? val.toUpperCase() : val;
-      }
+  on('hash-compute', 'click', computeHash);
+}
+
+async function computeHash() {
+  const input = $('hash-input')?.value || '';
+  const r = await HashTool.computeAll(input);
+  const result = $('hash-result');
+  if (r.success && result) {
+    result.classList.remove('hidden');
+    const upper = $('hash-upper')?.checked || false;
+    for (const [alg, val] of Object.entries(r.data)) {
+      const id = 'hash-' + alg.toLowerCase().replace('-', '');
+      const el = $(id);
+      if (el) el.textContent = upper ? val.toUpperCase() : val;
     }
-  });
+    saveCache('hash-computed', '1');
+  }
 }
 
 // ============ UUID / Random ============
+
 function initUuid() {
   on('uuid-gen', 'click', () => {
     const upper = $('uuid-upper')?.checked || false;
     const noDash = $('uuid-nodash')?.checked || false;
-    const output = $('uuid-output');
-    if (output) output.value = UuidTool.generateV4(upper, !noDash);
+    const uuid = UuidTool.generateV4(upper, !noDash);
+    renderResultBox('uuid-result', [
+      { label: t('uuid.label'), value: uuid, id: 'uuid-r-val' },
+    ]);
+    saveCache('uuid-computed', uuid);
   });
   on('rand-gen', 'click', () => {
-    const len = parseInt($('rand-len')?.value || '16') || 16;
+    const len = parseInt($('rand-len')?.value || String(DEFAULT_RAND_LENGTH)) || DEFAULT_RAND_LENGTH;
     const charset = $('rand-charset')?.value || 'alphanumeric';
     const noAmb = $('rand-no-ambiguous')?.checked || false;
-    const output = $('rand-output');
-    if (output) output.value = UuidTool.randomString(len, charset, noAmb);
+    const val = UuidTool.randomString(len, charset, noAmb);
+    renderResultBox('rand-result', [
+      { label: t('rand.gen'), value: val, id: 'rand-r-val' },
+    ]);
+    saveCache('rand-computed', val);
   });
   on('rand-pwd', 'click', () => {
-    const len = parseInt($('rand-len')?.value || '16') || 16;
-    const output = $('rand-output');
-    if (output) output.value = UuidTool.randomPassword(len);
+    const len = parseInt($('rand-len')?.value || String(DEFAULT_RAND_LENGTH)) || DEFAULT_RAND_LENGTH;
+    const val = UuidTool.randomPassword(len);
+    renderResultBox('rand-result', [
+      { label: t('rand.pwd'), value: val, id: 'rand-r-val' },
+    ]);
+    saveCache('rand-computed', val);
   });
 }
 
 // ============ IP ============
-function initIp() {
-  on('ip-calc', 'click', () => {
-    const input = $('ip-input')?.value?.trim() || '';
-    if (!input) return;
-    const result = $('ip-result');
-    if (!result) return;
 
-    if (input.includes('/')) {
-      const r = IpTool.cidr(input);
-      result.classList.remove('hidden');
-      if (r.success) {
-        result.innerHTML = Object.entries(r.data).map(([k, v]) =>
-          `<div class="result-row"><span class="result-label">${escapeHtml(k)}</span><span class="result-value">${escapeHtml(String(v))}</span></div>`
-        ).join('');
-      } else {
-        result.textContent = `${t('error.prefix')}: ${r.error}`;
-      }
+/**
+ * Render IP calculation result with optional error fallback.
+ * @param {Array<{label: string, value: string, id: string}>} rows - Result rows
+ */
+function renderIpResult(rows) {
+  renderResultBox('ip-result', rows);
+  if (rows.length > 0 && rows[0].id !== 'ip-r-err') {
+    saveCache('ip-computed', '1');
+  }
+}
+
+function computeIp() {
+  const input = $('ip-input')?.value?.trim() || '';
+  if (!input) return;
+
+  if (input.includes('/')) {
+    const r = IpTool.cidr(input);
+    if (r.success) {
+      const rows = Object.entries(r.data).map(([k, v]) => ({
+        label: t(IP_FIELD_I18N[k] || k),
+        value: String(v),
+        id: `ip-r-${k}`,
+      }));
+      renderIpResult(rows);
     } else {
-      const r = IpTool.ipToInt(input);
-      result.classList.remove('hidden');
-      if (r.success) {
-        const cidr = IpTool.cidr(input + '/32');
-        result.innerHTML = `<div class="result-row"><span class="result-label">${t('ip.integer')}</span><span class="result-value">${r.data}</span></div>` +
-          (cidr.success ? Object.entries(cidr.data).map(([k, v]) =>
-            `<div class="result-row"><span class="result-label">${escapeHtml(k)}</span><span class="result-value">${escapeHtml(String(v))}</span></div>`
-          ).join('') : '');
+      renderIpResult([{ label: t('error.prefix'), value: r.error, id: 'ip-r-err' }]);
+    }
+  } else {
+    const r = IpTool.ipToInt(input);
+    if (r.success) {
+      const rows = [{ label: t('ip.integer'), value: String(r.data), id: 'ip-r-int' }];
+      const cidr = IpTool.cidr(input + '/32');
+      if (cidr.success) {
+        Object.entries(cidr.data).forEach(([k, v]) => {
+          rows.push({ label: t(IP_FIELD_I18N[k] || k), value: String(v), id: `ip-r-${k}` });
+        });
+      }
+      renderIpResult(rows);
+    } else {
+      const r2 = IpTool.intToIp(input);
+      if (r2.success) {
+        renderIpResult([{ label: t('ip.ipAddr'), value: r2.data, id: 'ip-r-ip' }]);
       } else {
-        const r2 = IpTool.intToIp(input);
-        if (r2.success) {
-          result.innerHTML = `<div class="result-row"><span class="result-label">${t('ip.ipAddr')}</span><span class="result-value">${r2.data}</span></div>`;
-        } else {
-          result.textContent = `${t('error.prefix')}: ${r.error}`;
-        }
+        renderIpResult([{ label: t('error.prefix'), value: r.error, id: 'ip-r-err' }]);
       }
     }
-  });
+  }
+}
+
+function initIp() {
+  on('ip-calc', 'click', computeIp);
   on('ip-to-int', 'click', () => {
     const r = IpTool.ipToInt($('ip-input')?.value || '');
-    const result = $('ip-result');
-    if (result) {
-      result.classList.remove('hidden');
-      result.textContent = r.success ? `${t('ip.integer')}: ${r.data}` : `${t('error.prefix')}: ${r.error}`;
+    if (r.success) {
+      renderIpResult([{ label: t('ip.integer'), value: String(r.data), id: 'ip-r-int' }]);
+    } else {
+      renderIpResult([{ label: t('error.prefix'), value: r.error, id: 'ip-r-err' }]);
     }
   });
   on('int-to-ip', 'click', () => {
     const r = IpTool.intToIp($('ip-input')?.value || '');
-    const result = $('ip-result');
-    if (result) {
-      result.classList.remove('hidden');
-      result.textContent = r.success ? `${t('ip.ipAddr')}: ${r.data}` : `${t('error.prefix')}: ${r.error}`;
+    if (r.success) {
+      renderIpResult([{ label: t('ip.ipAddr'), value: r.data, id: 'ip-r-ip' }]);
+    } else {
+      renderIpResult([{ label: t('error.prefix'), value: r.error, id: 'ip-r-err' }]);
     }
   });
 }
 
 // ============ Regex ============
+
 function initRegex() {
   const presetsSelect = $('regex-presets-select');
   if (presetsSelect && RegexTool.COMMON_PATTERNS) {
@@ -784,6 +1315,8 @@ function initRegex() {
   }
 
   let regexTimer;
+
+  /** Execute regex test, highlight, and replace. */
   function runRegex() {
     const pattern = $('regex-pattern')?.value || '';
     const flags = $('regex-flags')?.value || '';
@@ -823,9 +1356,12 @@ function initRegex() {
     if (matchesEl) {
       if (r.data.count > 0) {
         matchesEl.classList.remove('hidden');
-        matchesEl.innerHTML = `<div style="margin-bottom:6px;font-weight:600">${t('regex.matches', { count: r.data.count })}</div>` +
-          r.data.matches.slice(0, 50).map((m, i) =>
-            `<div class="result-row"><span class="result-label">#${i + 1}</span><span class="result-value">"${escapeHtml(m.match)}" @${m.index}${m.groups.length ? ' groups: ' + m.groups.map(g => `"${g}"`).join(', ') : ''}</span></div>`
+        matchesEl.innerHTML =
+          `<div style="margin-bottom:6px;font-weight:600">${t('regex.matches', { count: r.data.count })}</div>` +
+          r.data.matches.slice(0, MAX_REGEX_MATCHES).map((m, i) =>
+            `<div class="result-row"><span class="result-label">#${i + 1}</span>` +
+            `<span class="result-value">"${escapeHtml(m.match)}" @${m.index}` +
+            `${m.groups.length ? ' groups: ' + m.groups.map(g => `"${g}"`).join(', ') : ''}</span></div>`
           ).join('');
       } else {
         matchesEl.classList.remove('hidden');
@@ -837,14 +1373,17 @@ function initRegex() {
     if (replacement !== undefined && replacement !== null) {
       const rr = RegexTool.replace(pattern, flags, text, replacement);
       const resultEl = $('regex-result');
-      if (resultEl) resultEl.value = rr.success ? rr.data : '';
+      if (resultEl) {
+        resultEl.value = rr.success ? rr.data : '';
+        updateOutputVisibility('regex-result');
+      }
     }
   }
 
   ['regex-pattern', 'regex-flags', 'regex-text', 'regex-replace'].forEach(id => {
     on(id, 'input', () => {
       clearTimeout(regexTimer);
-      regexTimer = setTimeout(runRegex, 300);
+      regexTimer = setTimeout(runRegex, REGEX_DEBOUNCE);
     });
   });
 }

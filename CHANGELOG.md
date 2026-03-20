@@ -1,40 +1,69 @@
 # Changelog
 
+[🇨🇳 中文版](CHANGELOG.zh-CN.md)
+
+## [0.3.0] - 2026-03-20
+
+### Added
+
+- **CodeMirror 6 editor integration** — JSON, YAML, Query String, JWT, Cron, and Markdown input/output fields replaced with CodeMirror 6 syntax-highlighted editors with line numbers and theme sync
+- **esbuild bundling** — New `scripts/esbuild.js` bundles `popup.js` and its dependencies into `popup.bundle.js` for faster loading
+- **Auto-hide output area** — Output panels are hidden by default (`.io-area-output.is-empty`) and appear automatically when results are available, reducing visual noise
+- **Inline IO action buttons** — Clear and Copy buttons now float over input/output areas (top-right corner), visible on hover, saving layout space
+- **Syntax-highlighted output** — New `.io-highlight` component for structured syntax highlighting in JSON/JWT outputs
+- **Cron timezone support** — Cron "next run" calculation now accepts a timezone parameter, using `Intl.DateTimeFormat` for formatted output
+- **Expanded i18n coverage** — More tool labels, buttons, placeholders, and toast messages now support EN/ZH switching
+
+### Changed
+
+- **Modular refactoring** — Split `popup.js` (850 lines) into `constants.js`, `cache.js`, `theme.js`, and `render.js` modules
+- **Centralized constants** — Cache keys, lookup maps, magic numbers, and timing constants moved to `constants.js`, eliminating hardcoded values
+- **CSS variables optimization** — Hardcoded colors for diff lines, regex highlights, and color preview extracted into CSS variables (`--diff-add-bg`, `--regex-mark-bg`, `--checker-color`, etc.)
+- **Unified constants in i18n / service-worker** — Hardcoded keys replaced with `LOCALE_KEY` / `CTX_TOAST_MAX_LENGTH` constants
+- **Icon system upgrade** — SVG icons changed from 18px to GitHub Octicons 16px standard
+- **Timestamp default timezone** — `TimestampTool.toReadable()` default timezone changed from `UTC` to `Asia/Shanghai`
+- **Build script enhancement** — `scripts/build.js` added `POPUP_EXCLUDE` list to skip bundled source files when copying to dist
+- **JSDoc documentation** — Added JSDoc comments to all public functions and modules
+
+### Removed
+
+- Removed unused `icon()` export from `icons.js`
+
 ## [0.2.0] - 2026-02-26
 
 ### Added
 
-- 记住上次使用的工具，重新打开 Popup 时自动定位到上次使用的面板
-- 暗色主题支持：默认跟随系统 `prefers-color-scheme`，也支持手动切换（系统 / 亮色 / 暗色 三态循环）
-- 语言切换按钮 title 支持 i18n
+- Remember last used tool — automatically navigates to the previously used panel when reopening Popup
+- Dark theme support — follows system `prefers-color-scheme` by default, with manual toggle (system → light → dark cycle)
+- Language toggle button title now supports i18n
 
 ### Changed
 
-- 主要操作按钮（编码 / 解码 / 执行）改为描边风格，hover 时填充颜色，视觉更轻盈
-- 暗色主题下文字颜色提亮，提升可读性
+- Primary action buttons (encode / decode / execute) now use outlined style, filling on hover for a lighter visual appearance
+- Improved text color brightness in dark theme for better readability
 
 ### Fixed
 
-- 修复暗色主题下输入框（时间戳、进制、色值、IP、正则等）背景仍为白色的问题
-- 修复暗色主题下 Markdown HTML 源码框未隐藏导致白色背景显露的问题
-- 修复暗色主题下 Toast 提示文字不可见的问题
-- 修复只读输出框 focus 时仍显示蓝色高亮边框的问题
-- 修复部分面板内组件间距不一致的问题（regex-presets、divider 额外 margin，空状态容器占据 gap 间距）
+- Fixed input fields (timestamp, number-base, color, IP, regex, etc.) showing white background in dark theme
+- Fixed Markdown HTML source box not being hidden in dark theme, causing white background to show through
+- Fixed Toast notification text being invisible in dark theme
+- Fixed readonly output fields still showing blue focus ring
+- Fixed inconsistent component spacing in some panels (regex-presets, divider extra margin, empty state containers consuming gap space)
 
 ## [0.1.0] - 2026-02-25
 
 ### Added
 
-- 首次发布
-- 20 个开发者常用工具，支持 Popup 弹窗和右键菜单两种使用方式
-- **编解码**: Base64（含 URL-safe）、URL（含递归解码）、HTML 实体、Unicode、智能编码探测
-- **格式化**: JSON（格式化 / 压缩 / 校验 / 排序 / 宽松模式）、YAML ↔ JSON 互转
-- **解析**: Query String（key-value 表格展示）、JWT（Header / Payload / 过期检查）、Cron 表达式（自然语言描述 + 未来执行时间预览）
-- **转换**: 时间戳（秒 / 毫秒自动识别、多时区）、进制转换（BIN / OCT / DEC / HEX、BigInt 大数支持）、色值转换（HEX / RGB / HSL 互转 + 预览）
-- **文本**: 大小写转换（7 种格式）、去重 / 排序 / 统计、文本 Diff 对比（Myers 算法）、Markdown 实时预览
-- **计算 / 生成**: Hash（MD5 / SHA-1 / SHA-256 / SHA-512）、UUID v4 / 随机字符串 / 强密码生成
-- **网络**: IP / CIDR 计算（网络地址、广播地址、主机范围、私有地址识别）
-- **正则**: 正则表达式测试（实时高亮、捕获组、替换预览、常用模板）
-- 右键菜单支持 18 项快捷操作，结果自动写入剪贴板
-- Manifest V3，支持 Chrome 92+
-- 纯前端实现，不收集任何用户数据，不进行任何网络请求
+- Initial release
+- 20+ developer tools accessible via Popup and context menu
+- **Codec**: Base64 (with URL-safe), URL (with recursive decode), HTML Entity, Unicode, Smart Decode
+- **Format**: JSON (format / minify / validate / sort keys / loose mode), YAML ↔ JSON conversion
+- **Parse**: Query String (key-value table), JWT (Header / Payload / expiry check), Cron Expression (natural language description + next run preview)
+- **Convert**: Timestamp (auto-detect seconds / milliseconds, multi-timezone), Number Base (BIN / OCT / DEC / HEX, BigInt support), Color (HEX / RGB / HSL + preview)
+- **Text**: Case conversion (7 formats), Deduplicate / Sort / Stats, Text Diff (Myers algorithm), Markdown live preview
+- **Calc / Generate**: Hash (MD5 / SHA-1 / SHA-256 / SHA-512), UUID v4 / Random String / Strong Password generator
+- **Network**: IP / CIDR calculator (network address, broadcast, host range, private address detection)
+- **Regex**: Regex Tester (live highlight, capture groups, replace preview, preset templates)
+- Context menu with 18 quick actions — results auto-copied to clipboard
+- Manifest V3, Chrome 92+ support
+- Pure frontend — no user data collection, no network requests
